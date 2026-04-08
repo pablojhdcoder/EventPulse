@@ -6,5 +6,5 @@
 - da Costa Teixeira Veloso e Volta, Tiago, tiago.velosoevolta@udc.es, tiagovelosovolta
 - Pérez Noceda, Pablo, pablo.perez5@udc.es, paabloperez
 - Salgueiro Rendo, Sara, sara.salgueiro.rendo@udc.es , sarasalgueiro
-- Apellidos, nombre, login udc, login github
+- Bóveda Tosar, André, andre.boveda@udc.es, andreboveda
 - Apellidos, nombre, login udc, login github
