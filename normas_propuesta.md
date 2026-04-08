@@ -20,3 +20,36 @@ Una vez que el evento finaliza, el sistema agrega todas las votaciones recogidas
 
 - El Boceto: Presentad un diagrama C4 inicial (Nivel 1 y 2). No tiene
   que ser perfecto, pero sí mostrar la intención.
+
+```mermaid
+C4Context
+  title EventPulse - Diagrama de Contexto
+
+  Person(user, "Usuario", "Participa en eventos, chatea y vota")
+  Person(admin, "Administrador", "Crea y gestiona eventos")
+
+  System(eventpulse, "EventPulse", "Plataforma de eventos en tiempo real con chat y votaciones")
+
+  Rel(user, eventpulse, "Consulta eventos, envía mensajes y vota")
+  Rel(admin, eventpulse, "<br><br>Gestiona eventos y estados")
+```
+
+```mermaid
+C4Container
+  title EventPulse - Diagrama de Contenedores
+
+  Person(user, "Usuario")
+  Person(admin, "Administrador")
+
+  Container_Boundary(c1, "EventPulse") {
+    Container(api, "API REST + Channels", "Elixir/Phoenix", "Autenticación, CRUD de eventos, chat y votos en tiempo real")
+    ContainerDb(db, "Base de datos", "PostgreSQL", "Usuarios, eventos, votos y resultados finales")
+    Container(worker, "Workers/OTP", "Elixir (GenServer/Supervisors)", "Agregación de votos, cierre de evento y social feeling")
+  }
+
+  Rel(user, api, "Usa", "HTTPS / WebSocket")
+  Rel(admin, api, "Administra", "HTTPS")
+  Rel(api, db, "Lee/<br>escribe")
+  Rel(api, worker, "<br><br>Publica eventos internos /<br>PubSub")
+  Rel(worker, db, "Persiste <br>resultados")
+```
