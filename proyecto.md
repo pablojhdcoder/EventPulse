@@ -4,7 +4,7 @@
 
 - Herrero Díaz, Pablo Jesús, pablo.herrero.diaz@udc.es, pablojhd05
 - da Costa Teixeira Veloso e Volta, Tiago, tiago.velosoevolta@udc.es, tiagovelosovolta
-- Apellidos, nombre, login udc, login github
-- Apellidos, nombre, login udc, login github
+- Pérez Noceda, Pablo, pablo.perez5@udc.es, paabloperez
+- Salgueiro Rendo, Sara, sara.salgueiro.rendo@udc.es , sarasalgueiro
 - Apellidos, nombre, login udc, login github
 - Apellidos, nombre, login udc, login github
