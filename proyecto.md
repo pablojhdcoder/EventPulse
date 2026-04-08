@@ -7,4 +7,4 @@
 - Pérez Noceda, Pablo, pablo.perez5@udc.es, paabloperez
 - Salgueiro Rendo, Sara, sara.salgueiro.rendo@udc.es , sarasalgueiro
 - Bóveda Tosar, André, andre.boveda@udc.es, andreboveda
-- Apellidos, nombre, login udc, login github
+- Sánchez Torre, Miryam Raquel, miryam.sanchez1@udc.es, miryamsanchez26
