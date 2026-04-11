@@ -1,1 +1,32 @@
+# Editor / OS
 *~
+.DS_Store
+Thumbs.db
+
+# IDE (evitar subir configuración local; alineado con CONTRIBUTING.md)
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# Phoenix / Elixir — proyecto en event_pulse/
+event_pulse/_build/
+event_pulse/deps/
+event_pulse/cover/
+event_pulse/doc/
+event_pulse/tmp/
+event_pulse/.fetch
+event_pulse/erl_crash.dump
+
+# Cualquier crash dump de la VM en el repo
+erl_crash.dump
+
+# Artefactos de mix archive.build
+*.ez
+
+# Variables de entorno con secretos (credenciales DB, JWT, etc.)
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log

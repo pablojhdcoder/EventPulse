@@ -1,0 +1,34 @@
+defmodule EventPulse.Application do
+  # See https://hexdocs.pm/elixir/Application.html
+  # for more information on OTP Applications
+  @moduledoc false
+
+  use Application
+
+  @impl true
+  def start(_type, _args) do
+    children = [
+      EventPulseWeb.Telemetry,
+      EventPulse.Repo,
+      {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
+      {Phoenix.PubSub, name: EventPulse.PubSub},
+      # Start a worker by calling: EventPulse.Worker.start_link(arg)
+      # {EventPulse.Worker, arg},
+      # Start to serve requests, typically the last entry
+      EventPulseWeb.Endpoint
+    ]
+
+    # See https://hexdocs.pm/elixir/Supervisor.html
+    # for other strategies and supported options
+    opts = [strategy: :one_for_one, name: EventPulse.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+
+  # Tell Phoenix to update the endpoint configuration
+  # whenever the application is updated.
+  @impl true
+  def config_change(changed, _new, removed) do
+    EventPulseWeb.Endpoint.config_change(changed, removed)
+    :ok
+  end
+end
