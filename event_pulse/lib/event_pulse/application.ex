@@ -10,6 +10,7 @@ defmodule EventPulse.Application do
     children = [
       EventPulseWeb.Telemetry,
       EventPulse.Repo,
+      {EventPulse.Votes.VoteAggregator, name: EventPulse.Votes.VoteAggregator},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: EventPulse.PubSub},
       # Start a worker by calling: EventPulse.Worker.start_link(arg)
