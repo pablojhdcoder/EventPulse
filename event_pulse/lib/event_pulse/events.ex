@@ -6,6 +6,7 @@ defmodule EventPulse.Events do
   import Ecto.Query, warn: false
   alias EventPulse.Repo
   alias EventPulse.Events.Event
+  alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
 
   def list_events do
     Repo.all(Event)
@@ -46,6 +47,10 @@ defmodule EventPulse.Events do
           "events:#{updated.id}",
           {:status_changed, updated}
         )
+
+        if updated.status == "finalizado" do
+          SocialFeelingWorker.process_event(updated.id)
+        end
 
         {:ok, updated}
 
