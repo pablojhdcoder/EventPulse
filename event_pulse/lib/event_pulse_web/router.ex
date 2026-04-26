@@ -8,6 +8,7 @@ defmodule EventPulseWeb.Router do
   scope "/api", EventPulseWeb do
     pipe_through :api
 
+    resources "/events", EventController, except: [:new, :edit]
     get "/events/:event_id/social_feeling", SocialFeelingController, :show
   end
 
