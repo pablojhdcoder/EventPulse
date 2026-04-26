@@ -11,6 +11,7 @@ defmodule EventPulse.Application do
       EventPulseWeb.Telemetry,
       EventPulse.Repo,
       {EventPulse.Votes.VoteAggregator, name: EventPulse.Votes.VoteAggregator},
+      {EventPulse.SocialFeeling.Worker, name: EventPulse.SocialFeeling.Worker},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: EventPulse.PubSub},
       # Start a worker by calling: EventPulse.Worker.start_link(arg)

@@ -1,0 +1,166 @@
+defmodule EventPulse.SocialFeeling.Worker do
+  @moduledoc """
+  `GenServer` que procesa el cierre de un evento:
+
+    1. Obtiene los votos (prioriza la memoria del `VoteAggregator`,
+       con *fallback* a la base de datos).
+    2. Calcula el Social Feeling (`Calculator`).
+    3. Persiste el resultado en `social_feeling_results` (idempotente:
+       *upsert* por `event_id`).
+    4. Difunde por `Phoenix.PubSub` en el tópico `"event:<id>"`.
+    5. Intenta terminar el proceso `EventRoom` del evento si existe
+       bajo `EventPulse.EventRegistry` + `EventPulse.EventSupervisor`
+       (si esa infraestructura aún no está arrancada, es un *no-op*).
+
+  Expone dos formas de disparo:
+
+    * `process_event/1` — asíncrono (cast) para producción.
+    * `process_event_sync/1` — síncrono (call) usado por los tests.
+  """
+
+  use GenServer
+  require Logger
+  import Ecto.Query
+
+  alias EventPulse.Repo
+  alias EventPulse.SocialFeeling.Calculator
+  alias EventPulse.SocialFeeling.Result
+  alias EventPulse.Votes.Vote
+  alias EventPulse.Votes.VoteAggregator
+
+  @registry_name EventPulse.EventRegistry
+  @supervisor_name EventPulse.EventSupervisor
+
+  # --- API pública ---
+
+  def start_link(opts) do
+    name = Keyword.get(opts, :name, __MODULE__)
+    GenServer.start_link(__MODULE__, :ok, name: name)
+  end
+
+  @doc "Dispara el procesamiento del cierre de forma asíncrona."
+  def process_event(event_id, server \\ __MODULE__) do
+    GenServer.cast(server, {:process_event, event_id})
+  end
+
+  @doc """
+  Variante síncrona: devuelve `{:ok, %Result{}}` o `{:error, _}`.
+  Pensada para tests y para flujos que necesiten el resultado.
+  """
+  def process_event_sync(event_id, server \\ __MODULE__) do
+    GenServer.call(server, {:process_event, event_id})
+  end
+
+  # --- Callbacks ---
+
+  @impl true
+  def init(:ok), do: {:ok, %{}}
+
+  @impl true
+  def handle_cast({:process_event, event_id}, state) do
+    _ = do_process(event_id)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_call({:process_event, event_id}, _from, state) do
+    {:reply, do_process(event_id), state}
+  end
+
+  # --- Lógica interna ---
+
+  defp do_process(event_id) do
+    vote_counts = gather_votes(event_id)
+    feeling = Calculator.calculate(vote_counts)
+
+    case persist_result(event_id, feeling) do
+      {:ok, result} ->
+        broadcast(event_id, result)
+        cleanup_event_room(event_id)
+        {:ok, result}
+
+      {:error, reason} = err ->
+        Logger.error(
+          "social_feeling.worker: no se pudo persistir event_id=#{event_id} " <>
+            "(#{inspect(reason)})"
+        )
+
+        err
+    end
+  end
+
+  defp gather_votes(event_id) do
+    case safe_mem_results(event_id) do
+      m when is_map(m) and map_size(m) > 0 -> m
+      _ -> votes_from_db(event_id)
+    end
+  end
+
+  defp safe_mem_results(event_id) do
+    VoteAggregator.get_results(event_id)
+  catch
+    :exit, _ -> %{}
+  end
+
+  defp votes_from_db(event_id) do
+    from(v in Vote,
+      where: v.event_id == ^event_id,
+      group_by: v.choice,
+      select: {v.choice, count(v.id)}
+    )
+    |> Repo.all()
+    |> Enum.into(%{})
+  end
+
+  defp persist_result(event_id, feeling) do
+    attrs = %{
+      event_id: event_id,
+      score: feeling.score,
+      label: Atom.to_string(feeling.label),
+      total_votes: feeling.total_votes,
+      breakdown: stringify_breakdown(feeling.breakdown),
+      computed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+
+    %Result{}
+    |> Result.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace_all_except, [:id, :inserted_at]},
+      conflict_target: [:event_id]
+    )
+  end
+
+  defp stringify_breakdown(breakdown) do
+    Map.new(breakdown, fn {k, v} -> {to_string(k), v} end)
+  end
+
+  defp broadcast(event_id, %Result{} = result) do
+    Phoenix.PubSub.broadcast(
+      EventPulse.PubSub,
+      "event:#{event_id}",
+      {:social_feeling, result}
+    )
+  end
+
+  # La limpieza del `EventRoom` depende de la infraestructura OTP
+  # (Persona 6: Registry + DynamicSupervisor). Si aún no está arrancada,
+  # no hacemos nada y devolvemos :ok.
+  defp cleanup_event_room(event_id) do
+    with true <- registry_alive?(),
+         [{pid, _meta}] <- safe_lookup(event_id),
+         true <- supervisor_alive?() do
+      DynamicSupervisor.terminate_child(@supervisor_name, pid)
+    else
+      _ -> :ok
+    end
+  end
+
+  defp registry_alive?, do: not is_nil(Process.whereis(@registry_name))
+  defp supervisor_alive?, do: not is_nil(Process.whereis(@supervisor_name))
+
+  defp safe_lookup(event_id) do
+    Registry.lookup(@registry_name, event_id)
+  rescue
+    _ -> []
+  end
+end
