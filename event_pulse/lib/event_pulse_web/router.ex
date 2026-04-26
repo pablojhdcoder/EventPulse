@@ -10,6 +10,7 @@ defmodule EventPulseWeb.Router do
 
     resources "/events", EventController, except: [:new, :edit]
     get "/events/:event_id/social_feeling", SocialFeelingController, :show
+    put "/events/:id/status", EventController, :update_status
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development

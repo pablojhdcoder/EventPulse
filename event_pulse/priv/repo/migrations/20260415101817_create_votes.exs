@@ -9,6 +9,7 @@ defmodule EventPulse.Repo.Migrations.CreateVotes do
 
       timestamps(type: :utc_datetime)
     end
+
     create unique_index(:votes, [:user_id, :event_id])
   end
 end

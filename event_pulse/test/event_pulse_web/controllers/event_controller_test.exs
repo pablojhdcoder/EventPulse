@@ -20,7 +20,14 @@ defmodule EventPulseWeb.EventControllerTest do
     starts_at: ~U[2026-04-26 07:51:00Z],
     ends_at: ~U[2026-04-26 07:51:00Z]
   }
-  @invalid_attrs %{status: nil, description: nil, title: nil, category: nil, starts_at: nil, ends_at: nil}
+  @invalid_attrs %{
+    status: nil,
+    description: nil,
+    title: nil,
+    category: nil,
+    starts_at: nil,
+    ends_at: nil
+  }
 
   setup %{conn: conn} do
     {:ok, conn: put_req_header(conn, "accept", "application/json")}
