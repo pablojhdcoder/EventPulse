@@ -7,6 +7,8 @@ defmodule EventPulseWeb.Router do
 
   scope "/api", EventPulseWeb do
     pipe_through :api
+
+    get "/events/:event_id/social_feeling", SocialFeelingController, :show
   end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
