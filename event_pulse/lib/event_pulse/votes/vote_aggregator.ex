@@ -65,7 +65,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     end)
   end
 
-    defp broadcast_results(event_id, event_votes) do
+  defp broadcast_results(event_id, event_votes) do
     results = Enum.frequencies(Map.values(event_votes))
     # CAMBIA EventPulse.Sub POR EventPulse.PubSub
     Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:voted, results})

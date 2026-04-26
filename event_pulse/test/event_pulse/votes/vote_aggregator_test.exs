@@ -19,7 +19,8 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
 
       # 1. Verificar memoria (GenServer)
       results = VoteAggregator.get_results(event_id)
-      assert results == %{"Opción C" => 1} # Solo debe quedar el último
+      # Solo debe quedar el último
+      assert results == %{"Opción C" => 1}
 
       # 2. Verificar base de datos (Persistencia asíncrona)
       votos_en_db = Repo.all(Vote)

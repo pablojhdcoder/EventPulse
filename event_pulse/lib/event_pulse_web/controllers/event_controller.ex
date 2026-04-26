@@ -6,8 +6,13 @@ defmodule EventPulseWeb.EventController do
 
   action_fallback EventPulseWeb.FallbackController
 
-  def index(conn, _params) do
-    events = Events.list_events()
+  def index(conn, params) do
+    events =
+      case Map.get(params, "category") do
+        nil -> Events.list_events()
+        category -> Events.list_events_by_category(category)
+      end
+
     render(conn, :index, events: events)
   end
 
@@ -15,7 +20,6 @@ defmodule EventPulseWeb.EventController do
     with {:ok, %Event{} = event} <- Events.create_event(event_params) do
       conn
       |> put_status(:created)
-      |> put_resp_header("location", ~p"/api/events/#{event}")
       |> render(:show, event: event)
     end
   end
@@ -38,6 +42,14 @@ defmodule EventPulseWeb.EventController do
 
     with {:ok, %Event{}} <- Events.delete_event(event) do
       send_resp(conn, :no_content, "")
+    end
+  end
+
+  def update_status(conn, %{"id" => id, "status" => new_status}) do
+    event = Events.get_event!(id)
+
+    with {:ok, %Event{} = event} <- Events.update_event_status(event, new_status) do
+      render(conn, :show, event: event)
     end
   end
 end
