@@ -1,7 +1,6 @@
 defmodule EventPulse.EventsTest do
   use EventPulse.DataCase
 
-  alias EventPulse.Events
   alias EventPulse.Events.Event
 
   describe "changeset/2 - validaciones de campos" do

@@ -5,7 +5,7 @@ defmodule EventPulseWeb.EventControllerTest do
   alias EventPulse.Events.Event
 
   @create_attrs %{
-    status: "some status",
+    status: "programado",
     description: "some description",
     title: "some title",
     category: "some category",
@@ -13,7 +13,7 @@ defmodule EventPulseWeb.EventControllerTest do
     ends_at: ~U[2026-04-25 07:51:00Z]
   }
   @update_attrs %{
-    status: "some updated status",
+    status: "en_directo",
     description: "some updated description",
     title: "some updated title",
     category: "some updated category",
@@ -53,7 +53,7 @@ defmodule EventPulseWeb.EventControllerTest do
                "description" => "some description",
                "ends_at" => "2026-04-25T07:51:00Z",
                "starts_at" => "2026-04-25T07:51:00Z",
-               "status" => "some status",
+               "status" => "programado",
                "title" => "some title"
              } = json_response(conn, 200)["data"]
     end
@@ -79,7 +79,7 @@ defmodule EventPulseWeb.EventControllerTest do
                "description" => "some updated description",
                "ends_at" => "2026-04-26T07:51:00Z",
                "starts_at" => "2026-04-26T07:51:00Z",
-               "status" => "some updated status",
+               "status" => "en_directo",
                "title" => "some updated title"
              } = json_response(conn, 200)["data"]
     end
