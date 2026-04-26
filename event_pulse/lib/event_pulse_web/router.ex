@@ -6,8 +6,11 @@ defmodule EventPulseWeb.Router do
   end
 
   scope "/api", EventPulseWeb do
-    pipe_through :api
-  end
+  pipe_through :api
+
+  resources "/events", EventController, except: [:new, :edit]
+  put "/events/:id/status", EventController, :update_status
+end
 
   # Enable LiveDashboard and Swoosh mailbox preview in development
   if Application.compile_env(:event_pulse, :dev_routes) do
