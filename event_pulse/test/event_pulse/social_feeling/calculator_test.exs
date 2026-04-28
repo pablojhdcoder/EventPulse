@@ -48,6 +48,13 @@ defmodule EventPulse.SocialFeeling.CalculatorTest do
       assert r.score == 0.0
       assert r.label == :neutral
     end
+
+    test "umbrales exactos de etiqueta" do
+      assert Calculator.calculate(%{"muy_positivo" => 6, "neutral" => 4}).label == :muy_positivo
+      assert Calculator.calculate(%{"positivo" => 4, "neutral" => 6}).label == :positivo
+      assert Calculator.calculate(%{"negativo" => 4, "neutral" => 6}).label == :negativo
+      assert Calculator.calculate(%{"muy_negativo" => 6, "neutral" => 4}).label == :muy_negativo
+    end
   end
 
   describe "calculate/2 con pesos personalizados" do
