@@ -11,6 +11,8 @@ defmodule EventPulse.Application do
       EventPulseWeb.Telemetry,
       EventPulse.Repo,
       {EventPulse.Votes.VoteAggregator, name: EventPulse.Votes.VoteAggregator},
+      {Registry, keys: :unique, name: EventPulse.EventRegistry},
+      {DynamicSupervisor, strategy: :one_for_one, name: EventPulse.EventSupervisor},
       {EventPulse.SocialFeeling.Worker, name: EventPulse.SocialFeeling.Worker},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: EventPulse.PubSub},

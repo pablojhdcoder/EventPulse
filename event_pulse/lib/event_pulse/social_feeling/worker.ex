@@ -22,6 +22,7 @@ defmodule EventPulse.SocialFeeling.Worker do
   require Logger
   import Ecto.Query
 
+  alias EventPulse.EventRoom
   alias EventPulse.Repo
   alias EventPulse.SocialFeeling.Calculator
   alias EventPulse.SocialFeeling.Result
@@ -30,6 +31,8 @@ defmodule EventPulse.SocialFeeling.Worker do
 
   @registry_name EventPulse.EventRegistry
   @supervisor_name EventPulse.EventSupervisor
+  @max_retries 3
+  @retry_base_ms 100
 
   # --- API pública ---
 
@@ -40,7 +43,7 @@ defmodule EventPulse.SocialFeeling.Worker do
 
   @doc "Dispara el procesamiento del cierre de forma asíncrona."
   def process_event(event_id, server \\ __MODULE__) do
-    GenServer.cast(server, {:process_event, event_id})
+    GenServer.cast(server, {:process_event, event_id, 0})
   end
 
   @doc """
@@ -57,8 +60,14 @@ defmodule EventPulse.SocialFeeling.Worker do
   def init(:ok), do: {:ok, %{}}
 
   @impl true
-  def handle_cast({:process_event, event_id}, state) do
-    _ = do_process(event_id)
+  def handle_cast({:process_event, event_id, attempt}, state) do
+    _ = process_async(event_id, attempt)
+    {:noreply, state}
+  end
+
+  @impl true
+  def handle_info({:retry_process_event, event_id, attempt}, state) do
+    _ = process_async(event_id, attempt)
     {:noreply, state}
   end
 
@@ -68,6 +77,45 @@ defmodule EventPulse.SocialFeeling.Worker do
   end
 
   # --- Lógica interna ---
+
+  defp process_async(event_id, attempt) do
+    case safe_process(event_id) do
+      {:ok, _result} = ok ->
+        ok
+
+      {:error, reason} = err ->
+        maybe_retry(event_id, attempt, reason)
+        err
+    end
+  end
+
+  defp safe_process(event_id) do
+    do_process(event_id)
+  rescue
+    exception ->
+      {:error, exception}
+  catch
+    kind, reason ->
+      {:error, {kind, reason}}
+  end
+
+  defp maybe_retry(event_id, attempt, reason) when attempt < @max_retries do
+    delay = @retry_base_ms * (attempt + 1)
+
+    Logger.warning(
+      "social_feeling.worker: reintentando event_id=#{event_id} " <>
+        "attempt=#{attempt + 1}/#{@max_retries} reason=#{inspect(reason)}"
+    )
+
+    Process.send_after(self(), {:retry_process_event, event_id, attempt + 1}, delay)
+  end
+
+  defp maybe_retry(event_id, _attempt, reason) do
+    Logger.error(
+      "social_feeling.worker: agotados los reintentos event_id=#{event_id} " <>
+        "reason=#{inspect(reason)}"
+    )
+  end
 
   defp do_process(event_id) do
     vote_counts = gather_votes(event_id)
@@ -149,10 +197,16 @@ defmodule EventPulse.SocialFeeling.Worker do
     with true <- registry_alive?(),
          [{pid, _meta}] <- safe_lookup(event_id),
          true <- supervisor_alive?() do
-      DynamicSupervisor.terminate_child(@supervisor_name, pid)
+      close_event_room(pid)
     else
       _ -> :ok
     end
+  end
+
+  defp close_event_room(pid) do
+    EventRoom.close(pid)
+  catch
+    :exit, _ -> DynamicSupervisor.terminate_child(@supervisor_name, pid)
   end
 
   defp registry_alive?, do: not is_nil(Process.whereis(@registry_name))

@@ -1,6 +1,7 @@
 defmodule EventPulse.SocialFeeling.WorkerTest do
   use EventPulse.DataCase
 
+  alias EventPulse.EventRoom
   alias EventPulse.Repo
   alias EventPulse.SocialFeeling.Result
   alias EventPulse.SocialFeeling.Worker
@@ -50,5 +51,36 @@ defmodule EventPulse.SocialFeeling.WorkerTest do
       assert first.event_id == second.event_id
       assert Repo.aggregate(Result, :count, :event_id) == 1
     end
+
+    test "termina el EventRoom asociado al cerrar el evento" do
+      event_id = 776
+      Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_id}")
+
+      assert {:ok, pid} =
+               DynamicSupervisor.start_child(EventPulse.EventSupervisor, {EventRoom, event_id})
+
+      assert Process.alive?(pid)
+
+      assert {:ok, %Result{}} = Worker.process_event_sync(event_id)
+      assert_receive {:event_room_closed, ^event_id}
+
+      assert eventually(fn ->
+               not Process.alive?(pid) &&
+                 Registry.lookup(EventPulse.EventRegistry, event_id) == []
+             end)
+    end
   end
+
+  defp eventually(fun, attempts \\ 10)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    if fun.() do
+      true
+    else
+      Process.sleep(20)
+      eventually(fun, attempts - 1)
+    end
+  end
+
+  defp eventually(_fun, 0), do: false
 end
