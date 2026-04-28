@@ -1,7 +1,11 @@
 defmodule EventPulse.EventsTest do
   use EventPulse.DataCase
 
+  import EventPulse.EventsFixtures
+
+  alias EventPulse.Events
   alias EventPulse.Events.Event
+  alias EventPulse.SocialFeeling
 
   describe "changeset/2 - validaciones de campos" do
     test "changeset válido con datos correctos" do
@@ -98,4 +102,31 @@ defmodule EventPulse.EventsTest do
       assert Event.valid_statuses() == ["programado", "en_directo", "finalizado"]
     end
   end
+
+  describe "close_event/1" do
+    test "marca el evento como finalizado y persiste el Social Feeling" do
+      event = event_fixture()
+
+      assert {:ok, %Event{} = closed_event} = Events.close_event(event)
+      assert closed_event.status == "finalizado"
+
+      assert eventually(fn ->
+               result = SocialFeeling.get_for_event(event.id)
+               result && result.label == "sin_datos" && result.total_votes == 0
+             end)
+    end
+  end
+
+  defp eventually(fun, attempts \\ 10)
+
+  defp eventually(fun, attempts) when attempts > 0 do
+    if fun.() do
+      true
+    else
+      Process.sleep(20)
+      eventually(fun, attempts - 1)
+    end
+  end
+
+  defp eventually(_fun, 0), do: false
 end

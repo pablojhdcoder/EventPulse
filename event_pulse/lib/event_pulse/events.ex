@@ -36,6 +36,10 @@ defmodule EventPulse.Events do
     Repo.delete(event)
   end
 
+  def close_event(%Event{} = event) do
+    update_event_status(event, "finalizado")
+  end
+
   def update_event_status(%Event{} = event, new_status) do
     event
     |> Event.changeset(%{status: new_status})
