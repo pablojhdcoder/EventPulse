@@ -32,8 +32,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     new_event_votes = Map.put(event_votes, user_id, choice)
     new_state = Map.put(state, event_id, new_event_votes)
 
-    # 2. Persistencia asíncrona a PostgreSQL (RNF-05)
-    # Aquí llamarás a una función para guardar en DB sin bloquear el proceso
+    # 2. Persistencia en PostgreSQL, serializada por el GenServer para preservar el último voto.
     persist_vote(event_id, user_id, choice)
 
     # 3. Difundir por PubSub (RF-12)
@@ -53,16 +52,13 @@ defmodule EventPulse.Votes.VoteAggregator do
   # --- Funciones Privadas Auxiliares ---
 
   defp persist_vote(event_id, user_id, choice) do
-    # Usamos Task para que sea asíncrono y no bloquee el GenServer
-    Task.start(fn ->
-      %Vote{}
-      |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
-      |> Repo.insert(
-        # Si hay conflicto (ya votó), actualiza la opción [cite: 80, 101]
-        on_conflict: [set: [choice: choice]],
-        conflict_target: [:user_id, :event_id]
-      )
-    end)
+    %Vote{}
+    |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
+    |> Repo.insert(
+      # Si hay conflicto (ya votó), actualiza la opción [cite: 80, 101]
+      on_conflict: [set: [choice: choice]],
+      conflict_target: [:user_id, :event_id]
+    )
   end
 
   defp broadcast_results(event_id, event_votes) do
