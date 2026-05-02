@@ -21,8 +21,7 @@ defmodule EventPulse.SocialFeeling.Calculator do
   @type vote_counts :: %{String.t() => non_neg_integer()}
   @type result :: %{
           score: float(),
-          label:
-            :muy_negativo | :negativo | :neutral | :positivo | :muy_positivo | :sin_datos,
+          label: :muy_negativo | :negativo | :neutral | :positivo | :muy_positivo | :sin_datos,
           total_votes: non_neg_integer(),
           breakdown: vote_counts()
         }

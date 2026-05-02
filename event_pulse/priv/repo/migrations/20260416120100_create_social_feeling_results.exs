@@ -7,7 +7,8 @@ defmodule EventPulse.Repo.Migrations.CreateSocialFeelingResults do
       add :score, :float, null: false
       add :label, :string, null: false
       add :total_votes, :integer, null: false, default: 0
-      add :breakdown, :map, null: false, default: %{}  #no es estrictamente necesario, pero ensena el recuento de los votos
+      # no es estrictamente necesario, pero ensena el recuento de los votos
+      add :breakdown, :map, null: false, default: %{}
       add :computed_at, :utc_datetime, null: false
 
       timestamps(type: :utc_datetime)

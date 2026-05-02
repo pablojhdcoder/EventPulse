@@ -9,7 +9,9 @@ import Config
 
 config :event_pulse,
   ecto_repos: [EventPulse.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  chat_buffer_max: 20,
+  chat_max_body_length: 500
 
 # Configure the endpoint
 config :event_pulse, EventPulseWeb.Endpoint,

@@ -16,8 +16,7 @@ defmodule EventPulse.Application do
       {EventPulse.SocialFeeling.Worker, name: EventPulse.SocialFeeling.Worker},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: EventPulse.PubSub},
-      # Start a worker by calling: EventPulse.Worker.start_link(arg)
-      # {EventPulse.Worker, arg},
+      {EventPulse.Chat.EventRoom, name: EventPulse.Chat.EventRoom},
       # Start to serve requests, typically the last entry
       EventPulseWeb.Endpoint
     ]
