@@ -1,5 +1,6 @@
 defmodule EventPulse.Votes.VoteAggregator do
   use GenServer
+  import Ecto.Query
   alias EventPulse.Repo
   alias EventPulse.Votes.Vote
 
@@ -10,7 +11,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     GenServer.start_link(__MODULE__, %{}, opts)
   end
 
-  @doc "Registra o actualiza un voto en memoria"
+  @doc "Registra o actualiza un voto"
   def cast_vote(event_id, user_id, choice) do
     GenServer.cast(__MODULE__, {:cast_vote, event_id, user_id, choice})
   end
@@ -27,29 +28,29 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   @impl true
   def handle_cast({:cast_vote, event_id, user_id, choice}, state) do
-    # 1. Actualizar memoria (Consistencia eventual)
-    event_votes = Map.get(state, event_id, %{})
-    new_event_votes = Map.put(event_votes, user_id, choice)
-    new_state = Map.put(state, event_id, new_event_votes)
-
-    # 2. Persistencia en PostgreSQL, serializada por el GenServer para preservar el último voto.
     persist_vote(event_id, user_id, choice)
-
-    # 3. Difundir por PubSub (RF-12)
-    # Esto avisará a la Persona 3 para que los usuarios vean el cambio
-    broadcast_results(event_id, new_event_votes)
-
+    event_votes = votes_map_from_db(event_id)
+    broadcast_results(event_id, event_votes)
+    new_state = Map.put(state, event_id, event_votes)
     {:noreply, new_state}
   end
 
   @impl true
   def handle_call({:get_results, event_id}, _from, state) do
-    votes = Map.get(state, event_id, %{})
-    results = Enum.frequencies(Map.values(votes))
-    {:reply, results, state}
+    event_votes = votes_map_from_db(event_id)
+    results = Enum.frequencies(Map.values(event_votes))
+    {:reply, results, Map.put(state, event_id, event_votes)}
   end
 
   # --- Funciones Privadas Auxiliares ---
+
+  defp votes_map_from_db(event_id) do
+    Vote
+    |> where([v], v.event_id == ^event_id)
+    |> select([v], {v.user_id, v.choice})
+    |> Repo.all()
+    |> Map.new()
+  end
 
   defp persist_vote(event_id, user_id, choice) do
     %Vote{}
@@ -63,7 +64,7 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   defp broadcast_results(event_id, event_votes) do
     results = Enum.frequencies(Map.values(event_votes))
-    # CAMBIA EventPulse.Sub POR EventPulse.PubSub
+
     Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:voted, results})
   end
 end

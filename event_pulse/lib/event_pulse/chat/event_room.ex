@@ -1,25 +1,18 @@
 defmodule EventPulse.Chat.EventRoom do
   use GenServer
 
+  alias EventPulse.ChatBuffer
+
   @moduledoc """
-  GenServer que gestiona el buffer de mensajes de chat para cada evento.
+  Coordinador de chat por evento.
 
-  Mantiene en memoria un buffer FIFO acotado a `@buffer_max` mensajes por sala
-  (`event_id`). No persiste mensajes en base de datos; el chat es efímero por
-  diseño (ver `doc/contexto-arquitectura-distribuida.md`).
+  - Buffer distribuido: `EventPulse.ChatBuffer` (Redis Streams, últimos N mensajes).
+  - Entrega en tiempo real: `Phoenix.PubSub` en el tópico `event:<id>`.
 
-  ## Nota multi-nodo
-  En un despliegue con varios nodos BEAM cada nodo tiene su propio `EventRoom`.
-  La sincronización entre nodos del historial de chat queda fuera del alcance
-  de esta tarea y se abordará en la fase de arquitectura distribuida del equipo.
-
-  ## API pública
-
-      EventRoom.send_message("42", %{author: "alice", body: "hola"})
-      EventRoom.recent_messages("42")
+  El GenServer no mantiene estado de negocio; solo serializa el flujo de envío/lectura
+  del chat para exponer una API estable al LiveView.
   """
 
-  @buffer_max Application.compile_env(:event_pulse, :chat_buffer_max, 50)
   @max_body_length Application.compile_env(:event_pulse, :chat_max_body_length, 500)
 
   # ---------------------------------------------------------------------------
@@ -27,20 +20,13 @@ defmodule EventPulse.Chat.EventRoom do
   # ---------------------------------------------------------------------------
 
   def start_link(opts) do
-    GenServer.start_link(__MODULE__, %{}, opts)
+    GenServer.start_link(__MODULE__, :ok, opts)
   end
 
   @doc """
-  Registra un mensaje en el buffer del evento y lo difunde por PubSub.
+  Envía un mensaje: lo añade al buffer Redis y lo difunde por PubSub.
 
-  `event_id` debe ser un string.
-  `message` debe incluir al menos `:author` y `:body`.
-  Retorna `:ok` o `{:error, reason}` sin pasar por el GenServer si la
-  validación falla, para no bloquear el proceso con mensajes inválidos.
-
-  El argumento opcional `server` permite apuntar a una instancia específica
-  (útil en tests con `start_supervised!`). Por defecto usa el proceso registrado
-  globalmente.
+  Retorna `:ok` o `{:error, reason}` si la validación falla antes del GenServer.
   """
   def send_message(event_id, message, server \\ __MODULE__)
 
@@ -52,18 +38,18 @@ defmodule EventPulse.Chat.EventRoom do
       String.length(body) > @max_body_length ->
         {:error, :body_too_long}
 
-      true ->
+      match?({_, ""}, Integer.parse(event_id)) ->
         GenServer.cast(server, {:send_message, event_id, enrich(message)})
+        :ok
+
+      true ->
+        {:error, :invalid_event_id}
     end
   end
 
-  @doc """
-  Variante de `send_message/2` con servidor explícito. Alias de `send_message/3`
-  pensado para tests donde se arranca una instancia aislada con `start_supervised!`.
-  """
   def send_message_via(server, event_id, message), do: send_message(event_id, message, server)
 
-  @doc "Devuelve la lista de los últimos N mensajes del evento, en orden cronológico."
+  @doc "Devuelve los últimos N mensajes del evento desde Redis (orden cronológico)."
   def recent_messages(event_id, server \\ __MODULE__) when is_binary(event_id) do
     GenServer.call(server, {:recent_messages, event_id})
   end
@@ -73,40 +59,49 @@ defmodule EventPulse.Chat.EventRoom do
   # ---------------------------------------------------------------------------
 
   @impl true
-  def init(_), do: {:ok, %{}}
+  def init(:ok), do: {:ok, nil}
 
   @impl true
   def handle_cast({:send_message, event_id, message}, state) do
-    buffer =
-      state
-      |> Map.get(event_id, [])
-      |> append_and_trim(message)
+    pub = to_public_message(message)
+    _ = ChatBuffer.append_message(event_id, to_buffer_message(pub))
 
     Phoenix.PubSub.broadcast(
       EventPulse.PubSub,
       "event:#{event_id}",
-      {:new_message, message}
+      {:new_message, pub}
     )
 
-    {:noreply, Map.put(state, event_id, buffer)}
+    {:noreply, state}
   end
 
   @impl true
   def handle_call({:recent_messages, event_id}, _from, state) do
-    {:reply, Map.get(state, event_id, []), state}
+    {:reply, ChatBuffer.get_last_messages(event_id), state}
   end
 
   # ---------------------------------------------------------------------------
-  # Funciones privadas
+  # Privado
   # ---------------------------------------------------------------------------
 
   defp enrich(%{author: _, body: _} = message) do
     Map.put_new(message, :inserted_at, DateTime.utc_now())
   end
 
-  defp append_and_trim(buffer, message) do
-    buffer
-    |> Kernel.++([message])
-    |> Enum.take(-@buffer_max)
+  defp to_public_message(message) do
+    %{
+      author: message.author,
+      body: message.body,
+      inserted_at: message.inserted_at
+    }
+  end
+
+  defp to_buffer_message(pub) do
+    %{
+      user_id: pub.author,
+      username: pub.author,
+      content: pub.body,
+      timestamp: pub.inserted_at
+    }
   end
 end
