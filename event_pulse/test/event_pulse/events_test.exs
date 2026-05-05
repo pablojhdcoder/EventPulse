@@ -103,6 +103,65 @@ defmodule EventPulse.EventsTest do
     end
   end
 
+  describe "get_event/1" do
+    test "devuelve el evento cuando existe" do
+      event = event_fixture()
+      assert {:ok, got} = Events.get_event(event.id)
+      assert got.id == event.id
+    end
+
+    test "devuelve :error si no existe" do
+      assert :error = Events.get_event(999_999_999)
+    end
+  end
+
+  describe "list_events_filtered/2" do
+    test "sin filtros lista todos ordenados por starts_at" do
+      e1 =
+        event_fixture(%{
+          title: "primero",
+          starts_at: ~U[2026-01-01 10:00:00Z]
+        })
+
+      e2 =
+        event_fixture(%{
+          title: "segundo",
+          starts_at: ~U[2026-02-01 10:00:00Z]
+        })
+
+      ids = Events.list_events_filtered(nil, nil) |> Enum.map(& &1.id)
+      assert Enum.find_index(ids, &(&1 == e1.id)) < Enum.find_index(ids, &(&1 == e2.id))
+    end
+
+    test "filtra por estado" do
+      _p = event_fixture(%{status: "programado"})
+      live = event_fixture(%{status: "en_directo", title: "live"})
+      got = Events.list_events_filtered(nil, "en_directo")
+      assert length(got) == 1
+      assert hd(got).id == live.id
+    end
+
+    test "filtra por categoría y estado a la vez" do
+      _ =
+        event_fixture(%{
+          status: "en_directo",
+          category: "deportes",
+          title: "d"
+        })
+
+      m =
+        event_fixture(%{
+          status: "en_directo",
+          category: "musica",
+          title: "m"
+        })
+
+      got = Events.list_events_filtered("musica", "en_directo")
+      assert length(got) == 1
+      assert hd(got).id == m.id
+    end
+  end
+
   describe "close_event/1" do
     test "marca el evento como finalizado y persiste el Social Feeling" do
       event = event_fixture()
