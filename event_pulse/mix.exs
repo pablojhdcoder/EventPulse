@@ -10,7 +10,13 @@ defmodule EventPulse.MixProject do
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
       deps: deps(),
-      listeners: [Phoenix.CodeReloader]
+      listeners: [Phoenix.CodeReloader],
+      releases: [
+        event_pulse: [
+          include_executables_for: [:unix],
+          cookie: "event_pulse_demo"
+        ]
+      ]
     ]
   end
 
@@ -43,6 +49,8 @@ defmodule EventPulse.MixProject do
       {:phoenix_ecto, "~> 4.5"},
       {:ecto_sql, "~> 3.13"},
       {:postgrex, ">= 0.0.0"},
+      {:phoenix_live_view, "~> 1.0"},
+      {:lazy_html, ">= 0.1.0", only: :test},
       {:phoenix_live_dashboard, "~> 0.8.3"},
       {:swoosh, "~> 1.16"},
       {:req, "~> 0.5"},
@@ -51,8 +59,10 @@ defmodule EventPulse.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
+      {:libcluster, "~> 3.5"},
       {:bandit, "~> 1.5"},
-      {:pbkdf2_elixir, "~> 2.0"}
+      {:pbkdf2_elixir, "~> 2.0"},
+      {:redix, "~> 1.5"}
     ]
   end
 
@@ -67,6 +77,7 @@ defmodule EventPulse.MixProject do
       setup: ["deps.get", "ecto.setup"],
       "ecto.setup": ["ecto.create", "ecto.migrate", "run priv/repo/seeds.exs"],
       "ecto.reset": ["ecto.drop", "ecto.setup"],
+      demo_state: ["ecto.reset"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
