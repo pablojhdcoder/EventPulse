@@ -4,11 +4,12 @@ defmodule EventPulse.Votes.VoteAggregator do
   alias EventPulse.Repo
   alias EventPulse.Votes.Vote
 
+  @flush_interval 500  # ms entre cada persistencia en lote
+
   # --- API Pública ---
 
   def start_link(opts) do
-    # Estado: %{poll_id => %{user_id => choice}}
-    GenServer.start_link(__MODULE__, %{}, opts)
+    GenServer.start_link(__MODULE__, %{votes: %{}, pending: []}, opts)
   end
 
   @doc "Registra o actualiza un voto en memoria"
@@ -21,38 +22,58 @@ defmodule EventPulse.Votes.VoteAggregator do
     GenServer.call(__MODULE__, {:get_results, poll_id})
   end
 
-  # --- Servidor (Callbacks) ---
+  # --- Callbacks ---
 
   @impl true
-  def init(state), do: {:ok, state}
+  def init(state) do
+    # Programar el primer flush
+    schedule_flush()
+    {:ok, state}
+  end
 
   @impl true
   def handle_cast({:cast_vote, poll_id, user_id, choice}, state) do
     # 1. Actualizar memoria
-    poll_votes = Map.get(state, poll_id, %{})
+    poll_votes = Map.get(state.votes, poll_id, %{})
     new_poll_votes = Map.put(poll_votes, user_id, choice)
-    new_state = Map.put(state, poll_id, new_poll_votes)
+    new_votes = Map.put(state.votes, poll_id, new_poll_votes)
 
-    # 2. Persistencia asíncrona a PostgreSQL
-    persist_vote(poll_id, user_id, choice)
+    # 2. Añadir a la cola de pendientes (sobreescribe si ya existe)
+    new_pending = [{poll_id, user_id, choice} | Enum.reject(state.pending, fn {_p, u, _c} -> u == user_id end)]
 
-    # 3. Difundir por PubSub
+    # 3. Broadcast inmediato
     broadcast_results(poll_id, new_poll_votes)
 
-    {:noreply, new_state}
+    {:noreply, %{state | votes: new_votes, pending: new_pending}}
   end
 
   @impl true
   def handle_call({:get_results, poll_id}, _from, state) do
-    votes = Map.get(state, poll_id, %{})
+    votes = Map.get(state.votes, poll_id, %{})
     results = Enum.frequencies(Map.values(votes))
     {:reply, results, state}
   end
 
-  # --- Funciones Privadas Auxiliares ---
+  @impl true
+  def handle_info(:flush, state) do
+    # Persistir todos los pendientes en un lote
+    flush_pending(state.pending)
 
-  defp persist_vote(poll_id, user_id, choice) do
-    Task.start(fn ->
+    # Programar el siguiente flush
+    schedule_flush()
+
+    {:noreply, %{state | pending: []}}
+  end
+
+  # --- Funciones Privadas ---
+
+  defp schedule_flush do
+    Process.send_after(self(), :flush, @flush_interval)
+  end
+
+  defp flush_pending([]), do: :ok
+  defp flush_pending(pending) do
+    Enum.each(pending, fn {poll_id, user_id, choice} ->
       %Vote{}
       |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
       |> Repo.insert(
