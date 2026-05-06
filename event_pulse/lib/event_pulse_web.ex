@@ -1,20 +1,6 @@
 defmodule EventPulseWeb do
   @moduledoc """
-  The entrypoint for defining your web interface, such
-  as controllers, components, channels, and so on.
-
-  This can be used in your application as:
-
-      use EventPulseWeb, :controller
-      use EventPulseWeb, :html
-
-  The definitions below will be executed for every controller,
-  component, etc, so keep them short and clean, focused
-  on imports, uses and aliases.
-
-  Do NOT define functions inside the quoted expressions
-  below. Instead, define additional modules and import
-  those modules here.
+  The entrypoint for defining the web interface.
   """
 
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
@@ -23,9 +9,9 @@ defmodule EventPulseWeb do
     quote do
       use Phoenix.Router, helpers: false
 
-      # Import common connection and controller functions to use in pipelines
       import Plug.Conn
       import Phoenix.Controller
+      import Phoenix.LiveView.Router
     end
   end
 
@@ -42,6 +28,50 @@ defmodule EventPulseWeb do
       use Gettext, backend: EventPulseWeb.Gettext
 
       import Plug.Conn
+
+      unquote(verified_routes())
+    end
+  end
+
+  def live_view do
+    quote do
+      use Phoenix.LiveView
+
+      unquote(html_helpers())
+    end
+  end
+
+  def live_component do
+    quote do
+      use Phoenix.LiveComponent
+
+      unquote(html_helpers())
+    end
+  end
+
+  def html do
+    quote do
+      use Phoenix.Component
+
+      import Phoenix.Controller,
+        only: [get_csrf_token: 0, view_module: 1, view_template: 1]
+
+      unquote(html_helpers())
+    end
+  end
+
+  defp html_helpers do
+    quote do
+      use Gettext, backend: EventPulseWeb.Gettext
+
+      import Phoenix.HTML
+      import Phoenix.HTML.Form
+
+      import EventPulseWeb.CoreComponents
+
+      alias Phoenix.LiveView.JS
+
+      alias EventPulseWeb.Layouts
 
       unquote(verified_routes())
     end

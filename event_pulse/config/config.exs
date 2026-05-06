@@ -9,14 +9,18 @@ import Config
 
 config :event_pulse,
   ecto_repos: [EventPulse.Repo],
-  generators: [timestamp_type: :utc_datetime]
+  generators: [timestamp_type: :utc_datetime],
+  chat_buffer_max: 15,
+  chat_max_body_length: 500,
+  auth_token_max_age: 7 * 24 * 60 * 60,
+  redis_url: "redis://localhost:6379/0"
 
 # Configure the endpoint
 config :event_pulse, EventPulseWeb.Endpoint,
   url: [host: "localhost"],
   adapter: Bandit.PhoenixAdapter,
   render_errors: [
-    formats: [json: EventPulseWeb.ErrorJSON],
+    formats: [html: EventPulseWeb.ErrorHTML, json: EventPulseWeb.ErrorJSON],
     layout: false
   ],
   pubsub_server: EventPulse.PubSub,

@@ -23,6 +23,8 @@ end
 config :event_pulse, EventPulseWeb.Endpoint,
   http: [port: String.to_integer(System.get_env("PORT", "4000"))]
 
+config :event_pulse, :redis_url, System.get_env("REDIS_URL", "redis://localhost:6379/0")
+
 if config_env() == :prod do
   database_url =
     System.get_env("DATABASE_URL") ||
@@ -117,4 +119,18 @@ if config_env() == :prod do
   #     config :swoosh, :api_client, Swoosh.ApiClient.Req
   #
   # See https://hexdocs.pm/swoosh/Swoosh.html#module-installation for details.
+
+  if System.get_env("DOCKER_DEMO") in ~w(true 1) do
+    port = String.to_integer(System.get_env("PORT") || "4000")
+    public_host = System.get_env("PHX_PUBLIC_HOST") || "localhost"
+    public_port = String.to_integer(System.get_env("PHX_PUBLIC_PORT") || "8080")
+
+    config :event_pulse, EventPulseWeb.Endpoint,
+      url: [host: public_host, port: public_port, scheme: "http"],
+      http: [ip: {0, 0, 0, 0}, port: port],
+      check_origin: [
+        "//#{public_host}:#{public_port}",
+        "http://#{public_host}:#{public_port}"
+      ]
+  end
 end

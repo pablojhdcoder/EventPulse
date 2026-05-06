@@ -6,16 +6,46 @@ defmodule EventPulse.Events do
   import Ecto.Query, warn: false
   alias EventPulse.Repo
   alias EventPulse.Events.Event
+  alias EventPulse.ChatBuffer
   alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
 
   def list_events do
-    Repo.all(Event)
+    list_events_filtered(nil, nil)
   end
 
   def list_events_by_category(category) do
+    list_events_filtered(category, nil)
+  end
+
+  @doc """
+  Lista eventos con filtros opcionales por categoría y/o estado.
+  Ordenados por `starts_at` ascendente.
+  """
+  def list_events_filtered(category \\ nil, status \\ nil) do
     Event
-    |> where([e], e.category == ^category)
+    |> maybe_filter_category(category)
+    |> maybe_filter_status(status)
+    |> order_by([e], asc: e.starts_at)
     |> Repo.all()
+  end
+
+  defp maybe_filter_category(query, nil), do: query
+
+  defp maybe_filter_category(query, category) do
+    where(query, [e], e.category == ^category)
+  end
+
+  defp maybe_filter_status(query, nil), do: query
+
+  defp maybe_filter_status(query, status) do
+    where(query, [e], e.status == ^status)
+  end
+
+  def get_event(id) when is_integer(id) do
+    case Repo.get(Event, id) do
+      nil -> :error
+      %Event{} = event -> {:ok, event}
+    end
   end
 
   def get_event!(id), do: Repo.get!(Event, id)
@@ -53,6 +83,7 @@ defmodule EventPulse.Events do
         )
 
         if updated.status == "finalizado" do
+          _ = ChatBuffer.delete_buffer(Integer.to_string(updated.id))
           SocialFeelingWorker.process_event(updated.id)
         end
 

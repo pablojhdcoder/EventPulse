@@ -25,10 +25,11 @@ defmodule EventPulse.Accounts.Auth do
   def login(email, password) do
     case get_user_by_email(email) do
       nil ->
-        Bcrypt.no_user_verify()
+        Pbkdf2.no_user_verify()
         {:error, :invalid_credentials}
+
       user ->
-        if Bcrypt.verify_pass(password, user.password_hash) do
+        if Pbkdf2.verify_pass(password, user.password_hash) do
           {:ok, user}
         else
           {:error, :invalid_credentials}

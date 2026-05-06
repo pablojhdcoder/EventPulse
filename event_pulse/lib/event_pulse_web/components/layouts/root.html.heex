@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="es" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title><%= assigns[:page_title] || "EventPulse" %></title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      body { font-family: system-ui, sans-serif; margin: 0; background: #f8fafc; color: #1e293b; line-height: 1.45; }
+      a { color: #4f46e5; text-decoration: none; }
+      a:hover { text-decoration: underline; }
+    </style>
+  </head>
+  <body>
+    {@inner_content}
+    <%!-- Phoenix and LiveView JS served from hex deps via Plug.Static in endpoint.ex --%>
+    <script src="/assets/phoenix.min.js"></script>
+    <script src="/assets/phoenix_live_view.min.js"></script>
+    <script>
+      (function() {
+        // Initialise the LiveView socket once the files have loaded.
+        var PHX = window.Phoenix;
+        var LV  = window.LiveView;
+        if (PHX && LV) {
+          var hooks = {
+            AutoScrollChat: {
+              mounted: function() {
+                this.el.scrollTop = this.el.scrollHeight;
+              },
+              updated: function() {
+                this.el.scrollTop = this.el.scrollHeight;
+              }
+            }
+          };
+
+          var csrfToken = document.querySelector("meta[name='csrf-token']");
+          var liveSocket = new LV.LiveSocket("/live", PHX.Socket, {
+            longPollFallbackMs: 2500,
+            hooks: hooks,
+            params: { _csrf_token: csrfToken ? csrfToken.getAttribute("content") : "" }
+          });
+          liveSocket.connect();
+          window.liveSocket = liveSocket;
+        }
+      })();
+    </script>
+  </body>
+</html>

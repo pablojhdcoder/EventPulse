@@ -5,11 +5,11 @@ defmodule EventPulse.Repo.Migrations.CreateUsersTable do
     execute "CREATE EXTENSION IF NOT EXISTS \"pgcrypto\""
 
     create table(:users, primary_key: false) do
-      add :id,            :uuid,   primary_key: true, default: fragment("gen_random_uuid()")
-      add :username,      :string, null: false, size: 20
-      add :email,         :string, null: false, size: 255
+      add :id, :uuid, primary_key: true, default: fragment("gen_random_uuid()")
+      add :username, :string, null: false, size: 20
+      add :email, :string, null: false, size: 255
       add :password_hash, :string, null: false, size: 255
-      add :role,          :string, null: false, default: "participant"
+      add :role, :string, null: false, default: "participant"
 
       timestamps()
     end

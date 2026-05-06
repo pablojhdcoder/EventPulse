@@ -1,0 +1,10 @@
+<header style="background:#4f46e5;padding:0.75rem 1.5rem;display:flex;align-items:center;gap:1rem;flex-wrap:wrap;">
+  <a href={~p"/"} style="color:#fff;font-weight:700;font-size:1.25rem;letter-spacing:-0.02em;">
+    EventPulse
+  </a>
+</header>
+
+<main style="max-width:960px;margin:1.5rem auto 2rem;padding:0 1rem;">
+  <.flash_group flash={@flash} />
+  {render_slot(@inner_block)}
+</main>

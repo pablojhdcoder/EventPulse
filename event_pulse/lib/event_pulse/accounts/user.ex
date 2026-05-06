@@ -13,6 +13,7 @@ defmodule EventPulse.Accounts.User do
     field :role, :string, default: "participant"
 
     timestamps()
+
     # Agrega campos inserted_at (fecha creación cuenta) y updated_at (fecha última modificación) automáticamente.
   end
 
@@ -31,13 +32,19 @@ defmodule EventPulse.Accounts.User do
     # Validar que el rol sea uno de los valores válidos
     |> validate_inclusion(:role, ["participant", "admin"])
     # Validar que la contraseña tenga al menos 8 caracteres y contenga mayúsculas, minúsculas, números y símbolos
-    |> validate_length(:password, min: 8, message: "La contraseña debe tener al menos 8 caracteres")
-    |> validate_format(:password, ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos")
-
+    |> validate_length(:password,
+      min: 8,
+      message: "La contraseña debe tener al menos 8 caracteres"
+    )
+    |> validate_format(
+      :password,
+      ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos"
+    )
     |> unique_constraint(:email)
     |> unique_constraint(:username)
-
-    |> hash_password() #La contraseña se guarda en la base de datos hasheada
+    # La contraseña se guarda en la base de datos hasheada
+    |> hash_password()
   end
 
   # Editar email y/o username
@@ -50,7 +57,6 @@ defmodule EventPulse.Accounts.User do
     # Validar longitud del username (mínimo 3, máximo 20 caracteres) y el formato del username (solo letras, números y guiones bajos)
     |> validate_length(:username, min: 3, max: 20)
     |> validate_format(:username, ~r/^[a-zA-Z0-9_]+$/)
-
     |> unique_constraint(:email)
     |> unique_constraint(:username)
   end
@@ -60,8 +66,15 @@ defmodule EventPulse.Accounts.User do
     user
     |> cast(attrs, [:password])
     |> validate_required([:password])
-    |> validate_length(:password, min: 8, message: "La contraseña debe tener al menos 8 caracteres")
-    |> validate_format(:password, ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos")
+    |> validate_length(:password,
+      min: 8,
+      message: "La contraseña debe tener al menos 8 caracteres"
+    )
+    |> validate_format(
+      :password,
+      ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos"
+    )
     |> hash_password()
   end
 
@@ -69,7 +82,7 @@ defmodule EventPulse.Accounts.User do
   defp hash_password(changeset) do
     case get_change(changeset, :password) do
       nil -> changeset
-      pwd -> put_change(changeset, :password_hash, Bcrypt.hash_pwd_salt(pwd))
+      pwd -> put_change(changeset, :password_hash, Pbkdf2.hash_pwd_salt(pwd))
     end
   end
 end
