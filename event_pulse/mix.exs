@@ -5,7 +5,7 @@ defmodule EventPulse.MixProject do
     [
       app: :event_pulse,
       version: "0.1.0",
-      elixir: "~> 1.15",
+      elixir: "~> 1.14",
       elixirc_paths: elixirc_paths(Mix.env()),
       start_permanent: Mix.env() == :prod,
       aliases: aliases(),
@@ -51,7 +51,8 @@ defmodule EventPulse.MixProject do
       {:gettext, "~> 1.0"},
       {:jason, "~> 1.2"},
       {:dns_cluster, "~> 0.2.0"},
-      {:bandit, "~> 1.5"}
+      {:bandit, "~> 1.5"},
+      {:bcrypt_elixir, "~> 3.0"}
     ]
   end
 
