@@ -1,6 +1,34 @@
 defmodule EventPulse.Votes.VoteAggregator do
   use GenServer
 
+  @moduledoc """
+  VoteAggregator es un GenServer que gestiona los votos en tiempo real.
+
+  ## Arquitectura
+
+  El estado interno tiene dos partes:
+    - `votes` — mapa en memoria con el recuento actual por poll: `%{poll_id => %{user_id => choice}}`
+    - `pending` — cola de votos pendientes de persistir en la DB
+
+  ## Persistencia en micro-lotes
+
+  En lugar de persistir cada voto individualmente (lo que generaría un query
+  por voto bajo carga), los votos se acumulan en `pending` y se persisten
+  en lote cada 500ms mediante `handle_info(:flush)`.
+
+  Ventajas:
+    - Baja latencia: el usuario recibe confirmación inmediata vía PubSub
+    - Menor carga en DB: un lote cada 500ms en lugar de un query por voto
+    - Deduplicación: si un usuario vota varias veces antes del flush,
+      solo se persiste su último voto
+
+  ## Consistencia
+
+  En caso de caída del nodo, los votos en `pending` que no se hayan
+  persistido se perderían. La memoria (`votes`) es la fuente de verdad
+  en caliente; Postgres es la fuente de verdad persistente.
+  """
+
   alias EventPulse.Repo
   alias EventPulse.Votes.Vote
 

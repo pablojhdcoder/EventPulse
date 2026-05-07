@@ -48,4 +48,19 @@ defmodule EventPulse.Votes do
   def get_results(poll_id) do
     VoteAggregator.get_results(poll_id)
   end
+
+  @doc "Obtiene los resultados de todas las votaciones de un evento"
+def get_event_results(event_id) do
+  list_polls(event_id)
+  |> Enum.map(fn poll ->
+    {poll.id, %{
+      question: poll.question,
+      options: poll.options,
+      status: poll.status,
+      results: VoteAggregator.get_results(poll.id)
+    }}
+  end)
+  |> Map.new()
+end
+
 end
