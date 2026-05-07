@@ -15,7 +15,7 @@ defmodule EventPulse.EventsFixtures do
         description: "some description",
         ends_at: ~U[2026-04-25 07:50:00Z],
         starts_at: ~U[2026-04-25 07:50:00Z],
-        status: "some status",
+        status: "programado",
         title: "some title"
       })
       |> EventPulse.Events.create_event()
