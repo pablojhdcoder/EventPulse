@@ -133,11 +133,12 @@ defmodule EventPulseWeb.EventLiveTest do
   describe "EventLive.Show - votes" do
     test "vote results update via PubSub broadcast", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
+      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO", "Abstención"])
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
-        "event:#{event.id}",
+        "poll:#{poll.id}",
         {:voted, %{"SÍ" => 3, "NO" => 1}}
       )
 
@@ -148,9 +149,14 @@ defmodule EventPulseWeb.EventLiveTest do
 
     test "clicking vote button casts a vote", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
+      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO", "Abstención"])
+
+      agg = Process.whereis(EventPulse.Votes.VoteAggregator)
+      Ecto.Adapters.SQL.Sandbox.allow(EventPulse.Repo, self(), agg)
+
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
-      Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event.id}")
+      Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
 
       lv |> element("button[phx-value-choice='SÍ']") |> render_click()
 

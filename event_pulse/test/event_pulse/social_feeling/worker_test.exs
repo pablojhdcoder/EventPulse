@@ -5,6 +5,7 @@ defmodule EventPulse.SocialFeeling.WorkerTest do
   alias EventPulse.Repo
   alias EventPulse.SocialFeeling.Result
   alias EventPulse.SocialFeeling.Worker
+  alias EventPulse.Votes.Poll
   alias EventPulse.Votes.Vote
 
   describe "process_event_sync/1" do
@@ -18,7 +19,23 @@ defmodule EventPulse.SocialFeeling.WorkerTest do
     end
 
     test "calcula y persiste a partir de los votos en DB" do
-      event_id = 999
+      {:ok, event} =
+        Repo.insert(%EventPulse.Events.Event{
+          title: "Worker vote event",
+          description: "test",
+          category: "test",
+          status: "finalizado",
+          starts_at: ~U[2026-01-01 10:00:00Z],
+          ends_at: ~U[2026-01-01 12:00:00Z]
+        })
+
+      {:ok, poll} =
+        Repo.insert(%Poll{
+          event_id: event.id,
+          question: "¿Sentimiento?",
+          options: ["positivo", "negativo", "neutral"],
+          status: "open"
+        })
 
       votes = [
         {1, "positivo"},
@@ -31,12 +48,12 @@ defmodule EventPulse.SocialFeeling.WorkerTest do
 
       Enum.each(votes, fn {user_id, choice} ->
         %Vote{}
-        |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
+        |> Vote.changeset(%{poll_id: poll.id, user_id: user_id, choice: choice})
         |> Repo.insert!()
       end)
 
-      assert {:ok, %Result{} = r} = Worker.process_event_sync(event_id)
-      assert r.event_id == event_id
+      assert {:ok, %Result{} = r} = Worker.process_event_sync(event.id)
+      assert r.event_id == event.id
       assert r.total_votes == 6
       assert r.label in ["positivo", "neutral", "muy_positivo"]
       assert is_float(r.score)

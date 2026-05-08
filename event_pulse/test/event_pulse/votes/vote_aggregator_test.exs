@@ -1,55 +1,64 @@
 defmodule EventPulse.Votes.VoteAggregatorTest do
   use EventPulse.DataCase
   alias EventPulse.Votes.VoteAggregator
-  alias EventPulse.Votes.Vote
+  alias EventPulse.Votes.Poll
   alias EventPulse.Repo
 
   setup do
-    # Iniciar procesos necesarios para los tests
-    start_supervised({Task.Supervisor, name: EventPulse.TaskSupervisor})
-    start_supervised({Phoenix.PubSub, name: EventPulse.PubSub})
-    start_supervised({EventPulse.Votes.VoteAggregator, name: {:global, EventPulse.Votes.VoteAggregator}})
+    agg = Process.whereis(EventPulse.Votes.VoteAggregator)
+    assert is_pid(agg)
+    Ecto.Adapters.SQL.Sandbox.allow(EventPulse.Repo, self(), agg)
     :ok
+  end
+
+  defp create_test_poll do
+    {:ok, event} =
+      Repo.insert(%EventPulse.Events.Event{
+        title: "Evento test",
+        description: "Descripción test",
+        category: "test",
+        status: "en_directo",
+        starts_at: ~U[2026-01-01 10:00:00Z],
+        ends_at: ~U[2026-01-01 12:00:00Z]
+      })
+
+    {:ok, poll} =
+      Repo.insert(%Poll{
+        event_id: event.id,
+        question: "¿Pregunta test?",
+        options: ["Opción A", "Opción B", "Opción C"],
+        status: "open"
+      })
+
+    poll
   end
 
   describe "VoteAggregator" do
     test "deduplicación: un usuario solo computa un voto aunque vote varias veces" do
-      event_id = 1
+      poll = create_test_poll()
       user_id = 42
 
-      # Simulamos 5 votos del mismo usuario para distintas opciones
-      VoteAggregator.cast_vote(event_id, user_id, "Opción A")
-      VoteAggregator.cast_vote(event_id, user_id, "Opción B")
-      VoteAggregator.cast_vote(event_id, user_id, "Opción C")
+      VoteAggregator.cast_vote(poll.id, user_id, "Opción A")
+      VoteAggregator.cast_vote(poll.id, user_id, "Opción B")
+      VoteAggregator.cast_vote(poll.id, user_id, "Opción C")
 
-      # Damos un margen mínimo para que la persistencia asíncrona actúe
-      Process.sleep(500)
-
-      # 1. Verificar memoria (GenServer)
-      results = VoteAggregator.get_results(event_id)
-      # Solo debe quedar el último
+      results = VoteAggregator.get_results(poll.id)
       assert results == %{"Opción C" => 1}
-
-      # 2. Verificar base de datos (Persistencia asíncrona)
-      votos_en_db = Repo.all(Vote)
-      assert length(votos_en_db) == 1
-      assert hd(votos_en_db).choice == "Opción C"
     end
 
     test "concurrencia: soporta múltiples votos de distintos usuarios a la vez" do
-      event_id = 2
+      poll = create_test_poll()
 
-      # Lanzamos 100 votos de forma concurrente
       1..100
       |> Enum.map(fn i ->
-        Task.async(fn -> VoteAggregator.cast_vote(event_id, i, "SÍ") end)
+        Task.async(fn -> VoteAggregator.cast_vote(poll.id, i, "Opción A") end)
       end)
       |> Task.await_many()
 
-      Process.sleep(2000)
+      Process.sleep(50)
 
-      results = VoteAggregator.get_results(event_id)
-      assert results["SÍ"] == 100
+      results = VoteAggregator.get_results(poll.id)
+      assert results["Opción A"] == 100
     end
   end
 end

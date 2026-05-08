@@ -26,6 +26,7 @@ defmodule EventPulse.SocialFeeling.Worker do
   alias EventPulse.Repo
   alias EventPulse.SocialFeeling.Calculator
   alias EventPulse.SocialFeeling.Result
+  alias EventPulse.Votes.Poll
   alias EventPulse.Votes.Vote
   alias EventPulse.Votes.VoteAggregator
 
@@ -138,21 +139,39 @@ defmodule EventPulse.SocialFeeling.Worker do
   end
 
   defp gather_votes(event_id) do
-    case safe_mem_results(event_id) do
-      m when is_map(m) and map_size(m) > 0 -> m
-      _ -> votes_from_db(event_id)
+    mem = mem_vote_counts_for_event(event_id)
+
+    if map_size(mem) > 0 do
+      mem
+    else
+      votes_from_db(event_id)
     end
   end
 
-  defp safe_mem_results(event_id) do
-    VoteAggregator.get_results(event_id)
-  catch
-    :exit, _ -> %{}
+  defp mem_vote_counts_for_event(event_id) do
+    poll_ids =
+      from(p in Poll, where: p.event_id == ^event_id, select: p.id)
+      |> Repo.all()
+
+    Enum.reduce(poll_ids, %{}, fn poll_id, acc ->
+      try do
+        VoteAggregator.get_results(poll_id)
+        |> merge_vote_count_maps(acc)
+      catch
+        :exit, _ -> acc
+      end
+    end)
+  end
+
+  defp merge_vote_count_maps(%{} = results, acc) do
+    Map.merge(acc, results, fn _choice, c1, c2 -> c1 + c2 end)
   end
 
   defp votes_from_db(event_id) do
     from(v in Vote,
-      where: v.event_id == ^event_id,
+      join: p in Poll,
+      on: v.poll_id == p.id,
+      where: p.event_id == ^event_id,
       group_by: v.choice,
       select: {v.choice, count(v.id)}
     )

@@ -7,7 +7,7 @@ defmodule EventPulseWeb.EventLive.Show do
 
   Mensajes PubSub:
   - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
-  - `{:voted, results}` — votos (`VoteAggregator`)
+  - `{:voted, results}` — votos (`VoteAggregator`, tópico `poll:<id>`)
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
   """
 
@@ -15,6 +15,7 @@ defmodule EventPulseWeb.EventLive.Show do
 
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
+  alias EventPulse.Votes
   alias EventPulse.Votes.VoteAggregator
 
   @max_body_length Application.compile_env(:event_pulse, :chat_max_body_length, 500)
@@ -30,15 +31,20 @@ defmodule EventPulseWeb.EventLive.Show do
         case Events.get_event(event_id) do
           {:ok, event} ->
             event_key = Integer.to_string(event_id)
+            poll = primary_open_poll(event_id)
 
             demo_user_id = normalize_demo_user_id(session["demo_user_id"])
+
+            vote_results =
+              if poll, do: VoteAggregator.get_results(poll.id), else: %{}
 
             socket =
               socket
               |> assign(:event, event)
               |> assign(:event_key, event_key)
+              |> assign(:poll, poll)
               |> assign(:demo_user_id, demo_user_id)
-              |> assign(:vote_results, VoteAggregator.get_results(event_id))
+              |> assign(:vote_results, vote_results)
               |> assign(:draft, "")
               |> assign(:max_body_length, @max_body_length)
               |> stream(:messages, [], dom_id: &message_dom_id/1)
@@ -47,6 +53,10 @@ defmodule EventPulseWeb.EventLive.Show do
               if connected?(socket) do
                 Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
                 Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
+
+                if poll do
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+                end
 
                 history = EventRoom.recent_messages(event_key)
                 stream(socket, :messages, history, reset: true)
@@ -93,10 +103,14 @@ defmodule EventPulseWeb.EventLive.Show do
         <section style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
           <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Votación</h2>
 
-          <div :if={@event.status == "en_directo"} style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
+          <div :if={@event.status == "en_directo" && @poll} style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
             <.vote_button choice="SÍ" />
             <.vote_button choice="NO" />
             <.vote_button choice="Abstención" />
+          </div>
+
+          <div :if={@event.status == "en_directo" && !@poll} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
+            No hay una votación abierta para este evento.
           </div>
 
           <div :if={@event.status != "en_directo"} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
@@ -220,14 +234,32 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   def handle_event("cast_vote", %{"choice" => choice}, socket) do
-    if socket.assigns.event.status == "en_directo" do
-      event_id = socket.assigns.event.id
-      user_id = socket.assigns.demo_user_id
-      VoteAggregator.cast_vote(event_id, user_id, choice)
-      {:noreply, socket}
-    else
-      {:noreply,
-       put_flash(socket, :error, "Las votaciones solo están abiertas en eventos en directo.")}
+    poll = socket.assigns.poll
+
+    cond do
+      socket.assigns.event.status != "en_directo" ->
+        {:noreply,
+         put_flash(socket, :error, "Las votaciones solo están abiertas en eventos en directo.")}
+
+      is_nil(poll) ->
+        {:noreply, put_flash(socket, :error, "No hay votación activa.")}
+
+      true ->
+        user_id = socket.assigns.demo_user_id
+
+        case Votes.cast_vote(poll.id, user_id, choice) do
+          :ok ->
+            {:noreply, socket}
+
+          {:error, :invalid_choice} ->
+            {:noreply, put_flash(socket, :error, "Opción de voto no válida.")}
+
+          {:error, :poll_closed} ->
+            {:noreply, put_flash(socket, :error, "La votación está cerrada.")}
+
+          {:error, :not_found} ->
+            {:noreply, put_flash(socket, :error, "Votación no encontrada.")}
+        end
     end
   end
 
@@ -245,7 +277,35 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   def handle_info({:status_changed, updated_event}, socket) do
-    {:noreply, assign(socket, :event, updated_event)}
+    old_poll_id = socket.assigns.poll && socket.assigns.poll.id
+    event_id = updated_event.id
+    poll = primary_open_poll(event_id)
+    vote_results = if poll, do: VoteAggregator.get_results(poll.id), else: %{}
+
+    socket =
+      socket
+      |> assign(:event, updated_event)
+      |> assign(:poll, poll)
+      |> assign(:vote_results, vote_results)
+
+    socket =
+      if connected?(socket) do
+        new_poll_id = poll && poll.id
+
+        if old_poll_id && old_poll_id != new_poll_id do
+          Phoenix.PubSub.unsubscribe(EventPulse.PubSub, "poll:#{old_poll_id}")
+        end
+
+        if new_poll_id && new_poll_id != old_poll_id do
+          Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{new_poll_id}")
+        end
+
+        socket
+      else
+        socket
+      end
+
+    {:noreply, socket}
   end
 
   def handle_info(_msg, socket) do
@@ -255,6 +315,14 @@ defmodule EventPulseWeb.EventLive.Show do
   # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
+
+  defp primary_open_poll(event_id) do
+    event_id
+    |> Votes.list_polls()
+    |> Enum.filter(&(&1.status == "open"))
+    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
+    |> List.first()
+  end
 
   defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id
 
