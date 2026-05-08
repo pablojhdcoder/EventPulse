@@ -1,4 +1,7 @@
 defmodule EventPulse.Accounts.User do
+   #Nota para la presentación:archivo que le dice a Elixir cómo es un usuario.
+  # el schema describe qué campos tiene un usuario y cómo mapea con la tabla users de POstgresSQL
+  #changesets: defien las reglas de validación par acad aoperación
   use Ecto.Schema
   import Ecto.Changeset
   #GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos
