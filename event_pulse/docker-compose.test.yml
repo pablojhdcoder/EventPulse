@@ -1,0 +1,26 @@
+version: "3.9"
+
+services:
+  db_test:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: event_pulse_test
+    ports:
+      - "5433:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 2s
+      retries: 10
+    volumes:
+      - test_db_data:/var/lib/postgresql/data
+    networks:
+      - test_net
+
+volumes:
+  test_db_data:
+
+networks:
+  test_net:
+    driver: bridge

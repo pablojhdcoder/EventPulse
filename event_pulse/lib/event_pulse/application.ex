@@ -11,6 +11,8 @@ defmodule EventPulse.Application do
   def start(_type, _args) do
     front_children = [
       EventPulseWeb.Telemetry,
+      {Task.Supervisor, name: EventPulse.TaskSupervisor},
+      EventPulse.Chat.Supervisor,
       EventPulse.Repo,
       {EventPulse.Votes.VoteAggregator, name: EventPulse.Votes.VoteAggregator},
       {Registry, keys: :unique, name: EventPulse.EventRegistry},

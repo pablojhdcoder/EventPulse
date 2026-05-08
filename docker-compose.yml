@@ -3,7 +3,8 @@
 # Levantar stack completo: docker compose up -d --build
 #
 # Las migraciones se ejecutan una sola vez en el servicio `migrate` (evita carreras
-# entre web1/web2/web3). Tras el primer arranque, podemos meter los seeds en una réplica (vía RPC al nodo vivo):
+# entre web1/web2/web3). Tras el primer arranque, podemos meter
+# los seeds en una réplica (vía RPC al nodo vivo):
 #   docker compose exec web1 bin/event_pulse rpc "EventPulse.Release.seed"
 #
 
