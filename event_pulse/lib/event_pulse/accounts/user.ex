@@ -1,16 +1,16 @@
 defmodule EventPulse.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
-  # Generar UUID en Ecto (cliente), no en la BD
+  #GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos
   @primary_key {:id, :binary_id, autogenerate: true}
-  # Usar binary_id para el tipo de dato del id (UUID)
+  #CUando otros schemas referencien a User, sus claves foráneas también serán UUID
   @foreign_key_type :binary_id
 
   schema "users" do
     field :username, :string
     field :email, :string
     field :password_hash, :string
-    field :password, :string, virtual: true
+    field :password, :string, virtual: true #Campo temporal. A la bd llega la contraseña hasheada
     field :role, :string, default: "participant"
 
     timestamps()
