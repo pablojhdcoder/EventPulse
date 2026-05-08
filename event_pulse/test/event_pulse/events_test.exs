@@ -5,7 +5,10 @@ defmodule EventPulse.EventsTest do
 
   alias EventPulse.Events
   alias EventPulse.Events.Event
+  alias EventPulse.Repo
   alias EventPulse.SocialFeeling
+  alias EventPulse.Votes
+  alias EventPulse.Votes.Poll
 
   describe "changeset/2 - validaciones de campos" do
     test "changeset válido con datos correctos" do
@@ -173,6 +176,26 @@ defmodule EventPulse.EventsTest do
                result = SocialFeeling.get_for_event(event.id)
                result && result.label == "sin_datos" && result.total_votes == 0
              end)
+    end
+
+    test "cierra las votaciones del evento y bloquea votos posteriores" do
+      event = event_fixture(%{status: "en_directo"})
+      {:ok, poll} = Votes.create_poll(event.id, "¿Continuar?", ["SÍ", "NO"])
+
+      assert {:ok, %Event{} = closed_event} = Events.close_event(event)
+      assert closed_event.status == "finalizado"
+
+      assert %Poll{status: "closed"} = Repo.get!(Poll, poll.id)
+      assert {:error, :poll_closed} = Votes.cast_vote(poll.id, 123, "SÍ")
+    end
+
+    test "update_event_status a finalizado usa el cierre estricto" do
+      event = event_fixture(%{status: "en_directo"})
+      {:ok, poll} = Votes.create_poll(event.id, "¿Cerrar?", ["SÍ", "NO"])
+
+      assert {:ok, %Event{} = closed_event} = Events.update_event_status(event, "finalizado")
+      assert closed_event.status == "finalizado"
+      assert %Poll{status: "closed"} = Repo.get!(Poll, poll.id)
     end
   end
 

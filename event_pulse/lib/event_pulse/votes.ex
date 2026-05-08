@@ -19,7 +19,9 @@ defmodule EventPulse.Votes do
   @doc "Cierra una votación"
   def close_poll(poll_id) do
     case Repo.get(Poll, poll_id) do
-      nil -> {:error, :not_found}
+      nil ->
+        {:error, :not_found}
+
       poll ->
         poll
         |> Poll.changeset(%{status: "closed"})
@@ -31,10 +33,17 @@ defmodule EventPulse.Votes do
 
   @doc "Registra un voto en una votación abierta"
   def cast_vote(poll_id, user_id, choice) do
-    case Repo.get(Poll, poll_id) do
-      nil -> {:error, :not_found}
-      %Poll{status: "closed"} -> {:error, :poll_closed}
-      %Poll{options: options} ->
+    case get_poll_with_event_status(poll_id) do
+      nil ->
+        {:error, :not_found}
+
+      {%Poll{status: "closed"}, _event_status} ->
+        {:error, :poll_closed}
+
+      {%Poll{}, event_status} when event_status != "en_directo" ->
+        {:error, :event_not_live}
+
+      {%Poll{options: options}, _event_status} ->
         if choice in options do
           VoteAggregator.cast_vote(poll_id, user_id, choice)
           :ok
@@ -62,5 +71,14 @@ defmodule EventPulse.Votes do
        }}
     end)
     |> Map.new()
+  end
+
+  defp get_poll_with_event_status(poll_id) do
+    from(p in Poll,
+      join: e in assoc(p, :event),
+      where: p.id == ^poll_id,
+      select: {p, e.status}
+    )
+    |> Repo.one()
   end
 end
