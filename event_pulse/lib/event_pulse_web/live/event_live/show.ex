@@ -15,6 +15,7 @@ defmodule EventPulseWeb.EventLive.Show do
 
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
+  alias EventPulse.SocialFeeling
   alias EventPulse.Votes
   alias EventPulse.Votes.VoteAggregator
 
@@ -43,6 +44,7 @@ defmodule EventPulseWeb.EventLive.Show do
               |> assign(:event, event)
               |> assign(:event_key, event_key)
               |> assign(:poll, poll)
+              |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
               |> assign(:demo_user_id, demo_user_id)
               |> assign(:vote_results, vote_results)
               |> assign(:draft, "")
@@ -104,9 +106,10 @@ defmodule EventPulseWeb.EventLive.Show do
           <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Votación</h2>
 
           <div :if={@event.status == "en_directo" && @poll} style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
-            <.vote_button choice="SÍ" />
-            <.vote_button choice="NO" />
-            <.vote_button choice="Abstención" />
+            <p style="margin:0 0 0.25rem;color:#475569;font-size:0.875rem;font-weight:600;">
+              {@poll.question}
+            </p>
+            <.vote_button :for={choice <- @poll.options} choice={choice} />
           </div>
 
           <div :if={@event.status == "en_directo" && !@poll} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
@@ -130,6 +133,28 @@ defmodule EventPulseWeb.EventLive.Show do
           <div :if={map_size(@vote_results) == 0} style="color:#94a3b8;font-size:0.875rem;">
             Sin votos aún.
           </div>
+        </section>
+
+        <%!-- Resultado final --%>
+        <section :if={@event.status == "finalizado"} style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
+          <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Social Feeling final</h2>
+
+          <div :if={@social_feeling}>
+            <p style="font-size:0.875rem;color:#64748b;margin:0 0 0.5rem;">Resultado consolidado del evento.</p>
+            <p style="margin:0 0 0.5rem;">
+              <span style="font-weight:600;">Etiqueta:</span> {@social_feeling.label}
+            </p>
+            <p style="margin:0 0 0.5rem;">
+              <span style="font-weight:600;">Score:</span> {@social_feeling.score}
+            </p>
+            <p style="margin:0;">
+              <span style="font-weight:600;">Votos totales:</span> {@social_feeling.total_votes}
+            </p>
+          </div>
+
+          <p :if={!@social_feeling} style="color:#94a3b8;font-size:0.875rem;margin:0;">
+            Calculando resultado final…
+          </p>
         </section>
 
         <%!-- Panel de chat --%>
@@ -257,6 +282,9 @@ defmodule EventPulseWeb.EventLive.Show do
           {:error, :poll_closed} ->
             {:noreply, put_flash(socket, :error, "La votación está cerrada.")}
 
+          {:error, :event_not_live} ->
+            {:noreply, put_flash(socket, :error, "El evento ya no está en directo.")}
+
           {:error, :not_found} ->
             {:noreply, put_flash(socket, :error, "Votación no encontrada.")}
         end
@@ -276,6 +304,10 @@ defmodule EventPulseWeb.EventLive.Show do
     {:noreply, assign(socket, :vote_results, results)}
   end
 
+  def handle_info({:social_feeling, result}, socket) do
+    {:noreply, assign(socket, :social_feeling, result)}
+  end
+
   def handle_info({:status_changed, updated_event}, socket) do
     old_poll_id = socket.assigns.poll && socket.assigns.poll.id
     event_id = updated_event.id
@@ -286,6 +318,7 @@ defmodule EventPulseWeb.EventLive.Show do
       socket
       |> assign(:event, updated_event)
       |> assign(:poll, poll)
+      |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
       |> assign(:vote_results, vote_results)
 
     socket =

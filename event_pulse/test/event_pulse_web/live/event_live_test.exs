@@ -131,6 +131,18 @@ defmodule EventPulseWeb.EventLiveTest do
   # ---------------------------------------------------------------------------
 
   describe "EventLive.Show - votes" do
+    test "renders the active poll question and options", %{conn: conn} do
+      event = event_fixture(%{status: "en_directo"})
+      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "¿Qué opción prefieres?", ["A", "B"])
+
+      {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
+
+      assert html =~ "¿Qué opción prefieres?"
+      assert html =~ "Votar: A"
+      assert html =~ "Votar: B"
+      refute html =~ "Votar: SÍ"
+    end
+
     test "vote results update via PubSub broadcast", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO", "Abstención"])
@@ -166,9 +178,12 @@ defmodule EventPulseWeb.EventLiveTest do
 
     test "status_changed PubSub message updates event assign", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
+      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO"])
       {:ok, lv, html} = live(conn, ~p"/events/#{event.id}")
 
       assert html =~ "en_directo"
+      assert html =~ "Escribe un mensaje"
+      assert html =~ "Votar: SÍ"
 
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
@@ -178,6 +193,38 @@ defmodule EventPulseWeb.EventLiveTest do
 
       html = render(lv)
       assert html =~ "finalizado"
+      refute html =~ "Escribe un mensaje"
+      refute html =~ "Votar: SÍ"
+    end
+
+    test "shows Social Feeling result when it is broadcast after close", %{conn: conn} do
+      event = event_fixture(%{status: "en_directo"})
+      {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
+
+      Phoenix.PubSub.broadcast(
+        EventPulse.PubSub,
+        "events:#{event.id}",
+        {:status_changed, %{event | status: "finalizado"}}
+      )
+
+      Phoenix.PubSub.broadcast(
+        EventPulse.PubSub,
+        "event:#{event.id}",
+        {:social_feeling,
+         %EventPulse.SocialFeeling.Result{
+           event_id: event.id,
+           label: "positivo",
+           score: 0.5,
+           total_votes: 2,
+           breakdown: %{}
+         }}
+      )
+
+      html = render(lv)
+      assert html =~ "Social Feeling final"
+      assert html =~ "positivo"
+      assert html =~ "0.5"
+      assert html =~ "2"
     end
   end
 
