@@ -3,21 +3,24 @@ defmodule EventPulse.Votes.VoteAggregator do
   alias EventPulse.Repo
   alias EventPulse.Votes.Vote
 
+  @name {:global, __MODULE__}
+
   # --- API Pública ---
 
   def start_link(opts) do
-    # Iniciamos el proceso con un mapa vacío: %{event_id => %{user_id => choice}}
+    opts = Keyword.put_new(opts, :name, @name)
     GenServer.start_link(__MODULE__, %{}, opts)
   end
 
   @doc "Registra o actualiza un voto en memoria"
   def cast_vote(event_id, user_id, choice) do
-    GenServer.cast(__MODULE__, {:cast_vote, event_id, user_id, choice})
+    :telemetry.execute([:event_pulse, :vote, :cast], %{count: 1}, %{event_id: event_id})
+    GenServer.cast(@name, {:cast_vote, event_id, user_id, choice})
   end
 
   @doc "Obtiene el recuento actual de un evento"
   def get_results(event_id) do
-    GenServer.call(__MODULE__, {:get_results, event_id})
+    GenServer.call(@name, {:get_results, event_id})
   end
 
   # --- Servidor (Callbacks) ---
@@ -33,11 +36,9 @@ defmodule EventPulse.Votes.VoteAggregator do
     new_state = Map.put(state, event_id, new_event_votes)
 
     # 2. Persistencia asíncrona a PostgreSQL (RNF-05)
-    # Aquí llamarás a una función para guardar en DB sin bloquear el proceso
     persist_vote(event_id, user_id, choice)
 
     # 3. Difundir por PubSub (RF-12)
-    # Esto avisará a la Persona 3 para que los usuarios vean el cambio
     broadcast_results(event_id, new_event_votes)
 
     {:noreply, new_state}
@@ -53,16 +54,27 @@ defmodule EventPulse.Votes.VoteAggregator do
   # --- Funciones Privadas Auxiliares ---
 
   defp persist_vote(event_id, user_id, choice) do
-    # Usamos Task para que sea asíncrono y no bloquee el GenServer
-    Task.start(fn ->
+    :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{event_id: event_id})
+
+    if Application.get_env(:event_pulse, :sync_persist, false) do
+      # Sync persistence for tests
       %Vote{}
       |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
       |> Repo.insert(
-        # Si hay conflicto (ya votó), actualiza la opción [cite: 80, 101]
         on_conflict: [set: [choice: choice]],
         conflict_target: [:user_id, :event_id]
       )
-    end)
+    else
+      # Async persistence for production
+      Task.Supervisor.start_child(EventPulse.TaskSupervisor, fn ->
+        %Vote{}
+        |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
+        |> Repo.insert(
+          on_conflict: [set: [choice: choice]],
+          conflict_target: [:user_id, :event_id]
+        )
+      end)
+    end
   end
 
     defp broadcast_results(event_id, event_votes) do

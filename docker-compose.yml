@@ -1,0 +1,44 @@
+version: "3.9"
+
+services:
+  db:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: event_pulse_dev
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      retries: 10
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - event_pulse_net
+
+  app:
+    build:
+      context: ./event_pulse
+      dockerfile: Dockerfile
+    environment:
+      PHX_SERVER: "true"
+      PORT: "4000"
+      DATABASE_URL: "ecto://postgres:postgres@db/event_pulse_dev"
+      SECRET_KEY_BASE: "replace_with_secure_secret"
+      DNS_CLUSTER_QUERY: "app"
+      ERL_COOKIE: "event_pulse_cookie"
+    command: sh -c "export NODE_NAME=event_pulse_$(hostname); MIX_ENV=prod elixir --name $NODE_NAME --cookie $ERL_COOKIE -S mix phx.server"
+    ports:
+      - "4000:4000"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - event_pulse_net
+
+volumes:
+  db_data:
+
+networks:
+  event_pulse_net:
+    driver: bridge

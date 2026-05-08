@@ -4,6 +4,14 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
   alias EventPulse.Votes.Vote
   alias EventPulse.Repo
 
+  setup do
+    # Iniciar procesos necesarios para los tests
+    start_supervised({Task.Supervisor, name: EventPulse.TaskSupervisor})
+    start_supervised({Phoenix.PubSub, name: EventPulse.PubSub})
+    start_supervised({EventPulse.Votes.VoteAggregator, name: {:global, EventPulse.Votes.VoteAggregator}})
+    :ok
+  end
+
   describe "VoteAggregator" do
     test "deduplicación: un usuario solo computa un voto aunque vote varias veces" do
       event_id = 1
@@ -15,7 +23,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       VoteAggregator.cast_vote(event_id, user_id, "Opción C")
 
       # Damos un margen mínimo para que la persistencia asíncrona actúe
-      Process.sleep(100)
+      Process.sleep(500)
 
       # 1. Verificar memoria (GenServer)
       results = VoteAggregator.get_results(event_id)
@@ -37,7 +45,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       end)
       |> Task.await_many()
 
-      Process.sleep(200)
+      Process.sleep(2000)
 
       results = VoteAggregator.get_results(event_id)
       assert results["SÍ"] == 100

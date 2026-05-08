@@ -9,6 +9,8 @@ defmodule EventPulse.Application do
   def start(_type, _args) do
     children = [
       EventPulseWeb.Telemetry,
+      {Task.Supervisor, name: EventPulse.TaskSupervisor},
+      EventPulse.Chat.Supervisor,
       EventPulse.Repo,
       {EventPulse.Votes.VoteAggregator, name: EventPulse.Votes.VoteAggregator},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore},
