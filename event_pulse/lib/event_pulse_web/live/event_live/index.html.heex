@@ -1,0 +1,50 @@
+<div style="max-width:800px; margin:2rem auto; padding:1rem;">
+  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+    <h1 style="font-size:1.5rem; font-weight:bold;">Eventos</h1>
+    <%= if @current_user && @current_user.role == "admin" do %>
+      <a href={~p"/events/new"}
+        style="background:#2563eb; color:white; padding:0.5rem 1rem; border-radius:0.375rem; text-decoration:none;">
+        + Nuevo Evento
+      </a>
+    <% end %>
+  </div>
+
+  <form phx-change="filter_category" style="margin-bottom:1rem;">
+    <select name="category" style="border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem;">
+      <option value="" selected={@category_filter == ""}>Todas las categorías</option>
+      <option value="deportes" selected={@category_filter == "deportes"}>Deportes</option>
+      <option value="musica" selected={@category_filter == "musica"}>Música</option>
+      <option value="politica" selected={@category_filter == "politica"}>Política</option>
+      <option value="cultura" selected={@category_filter == "cultura"}>Cultura</option>
+    </select>
+  </form>
+
+  <div>
+    <%= for event <- @events do %>
+      <div style="border:1px solid #e5e7eb; border-radius:0.5rem; padding:1rem; margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
+        <div>
+          <h2 style="font-weight:600; font-size:1.1rem;"><%= event.title %></h2>
+          <p style="color:#6b7280; font-size:0.875rem;">
+            Categoría: <%= event.category %> |
+            Estado: <strong><%= event.status %></strong>
+          </p>
+        </div>
+        <div style="display:flex; gap:0.5rem;">
+          <a href={~p"/events/#{event.id}"} style="color:#2563eb;">Ver</a>
+          <%= if @current_user && @current_user.role == "admin" do %>
+            <a href={~p"/events/#{event.id}/edit"} style="color:#d97706;">Editar</a>
+            <button phx-click="delete" phx-value-id={event.id}
+              data-confirm="¿Eliminar este evento?"
+              style="color:#dc2626; background:none; border:none; cursor:pointer;">
+              Eliminar
+            </button>
+          <% end %>
+        </div>
+      </div>
+    <% end %>
+
+    <%= if @events == [] do %>
+      <p style="color:#6b7280; text-align:center;">No hay eventos disponibles.</p>
+    <% end %>
+  </div>
+</div>

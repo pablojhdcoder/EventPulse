@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>EventPulse</title>
+    <style>
+      body { font-family: sans-serif; margin: 0; padding: 0; background: #f9fafb; }
+      .nav { background: #1e40af; color: white; padding: 1rem 2rem; display: flex; justify-content: space-between; }
+      .nav a { color: white; text-decoration: none; margin-left: 1rem; }
+      .flash-info { background: #d1fae5; color: #065f46; padding: 0.75rem 1rem; margin: 1rem; border-radius: 0.5rem; }
+      .flash-error { background: #fee2e2; color: #991b1b; padding: 0.75rem 1rem; margin: 1rem; border-radius: 0.5rem; }
+    </style>
+  </head>
+  <body>
+    <nav class="nav">
+      <a href="/events">🎯 EventPulse</a>
+      <div>
+        <a href="/events">Eventos</a>
+      </div>
+    </nav>
+    <%= if flash = Phoenix.Flash.get(@flash, :info) do %>
+      <div class="flash-info"><%= flash %></div>
+    <% end %>
+    <%= if flash = Phoenix.Flash.get(@flash, :error) do %>
+      <div class="flash-error"><%= flash %></div>
+    <% end %>
+    <%= @inner_content %>
+  </body>
+</html>
