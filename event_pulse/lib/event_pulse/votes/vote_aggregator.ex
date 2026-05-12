@@ -1,7 +1,9 @@
 defmodule EventPulse.Votes.VoteAggregator do
   @moduledoc """
-  Gestiona el estado de las votaciones en memoria y persiste los cambios
-  de forma periódica para no saturar la base de datos.
+  GenServer que gestiona votos en tiempo real.
+
+  Mantiene un mapa en memoria por ámbito de votación y persiste cambios en
+  micro-lotes. Soporta el modelo nuevo por `Poll` y el flujo anterior por evento.
   """
 
   use GenServer
@@ -62,7 +64,17 @@ defmodule EventPulse.Votes.VoteAggregator do
 
     broadcast_results(scope, updated_scope_votes)
 
-    {:noreply, %{state | votes: updated_votes, pending: updated_pending}}
+    state = %{state | votes: updated_votes, pending: updated_pending}
+
+    state =
+      if Application.get_env(:event_pulse, :sync_persist, false) do
+        flush_pending(state.pending)
+        %{state | pending: []}
+      else
+        state
+      end
+
+    {:noreply, state}
   end
 
   @impl true

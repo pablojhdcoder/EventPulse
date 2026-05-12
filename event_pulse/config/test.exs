@@ -8,7 +8,7 @@ import Config
 
 database_url =
   System.get_env("DATABASE_URL") ||
-    "ecto://postgres:postgres@localhost:5433/event_pulse_test#{System.get_env("MIX_TEST_PARTITION")}"
+    "ecto://postgres:postgres@localhost:5432/event_pulse_test#{System.get_env("MIX_TEST_PARTITION")}"
 
 config :event_pulse, EventPulse.Repo,
   url: database_url,
@@ -21,7 +21,7 @@ if !System.get_env("DATABASE_URL") do
     username: "postgres",
     password: "postgres",
     hostname: "localhost",
-    port: 5433,
+    port: 5432,
     database: "event_pulse_test#{System.get_env("MIX_TEST_PARTITION")}"
 end
 

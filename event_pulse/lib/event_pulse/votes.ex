@@ -42,16 +42,17 @@ defmodule EventPulse.Votes do
   Si las reglas de negocio se cumplen, delega el procesamiento al VoteAggregator.
   """
   def cast_vote(poll_id, user_id, choice) do
-    case Repo.get(Poll, poll_id) do
+    case get_poll_with_event_status(poll_id) do
       nil ->
         {:error, :not_found}
 
-      # No votar en encuestas cerradas
-      %Poll{status: "closed"} ->
+      {%Poll{status: "closed"}, _event_status} ->
         {:error, :poll_closed}
 
-      # Solo permite opciones definidas en la encuesta
-      %Poll{options: options} ->
+      {%Poll{}, event_status} when event_status != "en_directo" ->
+        {:error, :event_not_live}
+
+      {%Poll{options: options}, _event_status} ->
         if choice in options do
           VoteAggregator.cast_vote(poll_id, user_id, choice)
           :ok
@@ -82,5 +83,14 @@ defmodule EventPulse.Votes do
        }}
     end)
     |> Map.new()
+  end
+
+  defp get_poll_with_event_status(poll_id) do
+    from(p in Poll,
+      join: e in assoc(p, :event),
+      where: p.id == ^poll_id,
+      select: {p, e.status}
+    )
+    |> Repo.one()
   end
 end

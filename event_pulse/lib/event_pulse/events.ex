@@ -8,6 +8,7 @@ defmodule EventPulse.Events do
   alias EventPulse.Events.Event
   alias EventPulse.ChatBuffer
   alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
+  alias EventPulse.Votes.Poll
 
   def list_events do
     list_events_filtered(nil, nil)
@@ -67,8 +68,38 @@ defmodule EventPulse.Events do
   end
 
   def close_event(%Event{} = event) do
-    update_event_status(event, "finalizado")
+    Repo.transaction(fn ->
+      current = Repo.get!(Event, event.id, lock: "FOR UPDATE")
+
+      if current.status == "finalizado" do
+        {current, false}
+      else
+        {:ok, updated} =
+          current
+          |> Event.changeset(%{status: "finalizado"})
+          |> Repo.update()
+
+        close_event_polls(updated.id)
+        {updated, true}
+      end
+    end)
+    |> case do
+      {:ok, {updated, just_closed?}} ->
+        broadcast_status_changed(updated)
+
+        if just_closed? do
+          _ = ChatBuffer.delete_buffer(Integer.to_string(updated.id))
+          SocialFeelingWorker.process_event(updated.id)
+        end
+
+        {:ok, updated}
+
+      {:error, reason} ->
+        {:error, reason}
+    end
   end
+
+  def update_event_status(%Event{} = event, "finalizado"), do: close_event(event)
 
   def update_event_status(%Event{} = event, new_status) do
     event
@@ -76,11 +107,7 @@ defmodule EventPulse.Events do
     |> Repo.update()
     |> case do
       {:ok, updated} ->
-        Phoenix.PubSub.broadcast(
-          EventPulse.PubSub,
-          "events:#{updated.id}",
-          {:status_changed, updated}
-        )
+        broadcast_status_changed(updated)
 
         if updated.status == "finalizado" do
           _ = ChatBuffer.delete_buffer(Integer.to_string(updated.id))
@@ -96,5 +123,20 @@ defmodule EventPulse.Events do
 
   def change_event(%Event{} = event, attrs \\ %{}) do
     Event.changeset(event, attrs)
+  end
+
+  defp close_event_polls(event_id) do
+    now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+    from(p in Poll, where: p.event_id == ^event_id and p.status != "closed")
+    |> Repo.update_all(set: [status: "closed", updated_at: now])
+  end
+
+  defp broadcast_status_changed(%Event{} = event) do
+    Phoenix.PubSub.broadcast(
+      EventPulse.PubSub,
+      "events:#{event.id}",
+      {:status_changed, event}
+    )
   end
 end

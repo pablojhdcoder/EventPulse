@@ -79,6 +79,13 @@ defmodule EventPulse.MixProject do
       "ecto.reset": ["ecto.drop", "ecto.setup"],
       demo_state: ["ecto.reset"],
       test: ["ecto.create --quiet", "ecto.migrate --quiet", "test"],
+      "test.docker": [
+        "cmd docker-compose -f docker-compose.test.yml up -d db_test",
+        "ecto.create --quiet",
+        "ecto.migrate --quiet",
+        "test",
+        "cmd docker-compose -f docker-compose.test.yml down"
+      ],
       precommit: ["compile --warnings-as-errors", "deps.unlock --unused", "format", "test"]
     ]
   end
