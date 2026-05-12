@@ -50,25 +50,24 @@ defmodule EventPulseWeb.EventLive.Show do
           case Events.get_event(event_id) do
             {:ok, event} ->
               event_key = Integer.to_string(event_id)
-              poll = primary_open_poll(event_id)
+              polls = open_polls(event_id)
 
               demo_user_id =
                 normalize_demo_user_id(
                   Map.get(session, "demo_user_id") || Map.get(session, :demo_user_id)
                 )
 
-              vote_results =
-                if poll, do: VoteAggregator.get_results(poll.id), else: %{}
-
               socket =
                 socket
                 |> assign(:event, event)
                 |> assign(:event_key, event_key)
-                |> assign(:poll, poll)
+                |> assign(:polls, polls)
                 |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
                 |> assign(:current_user, current_user)
                 |> assign(:demo_user_id, demo_user_id)
-                |> assign(:vote_results, vote_results)
+                |> assign(:vote_results, vote_results_by_poll(polls))
+                |> assign(:final_poll_rows, final_poll_rows(event))
+                |> assign(:new_poll_form, new_poll_form())
                 |> assign(:draft, "")
                 |> assign(:max_body_length, @max_body_length)
                 |> assign(:valid_transitions, @valid_transitions)
@@ -79,7 +78,7 @@ defmodule EventPulseWeb.EventLive.Show do
                   Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
                   Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
 
-                  if poll do
+                  for poll <- polls do
                     Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
                   end
 
@@ -150,38 +149,94 @@ defmodule EventPulseWeb.EventLive.Show do
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
-        <%!-- Panel de votación --%>
+        <%!-- Panel de votaciones --%>
         <section style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-          <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Votación</h2>
+          <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Votaciones</h2>
 
-          <div :if={@event.status == "en_directo" && @poll} style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
-            <p style="margin:0 0 0.25rem;color:#475569;font-size:0.875rem;font-weight:600;">
-              {@poll.question}
-            </p>
-            <.vote_button :for={choice <- @poll.options} choice={choice} />
+          <div
+            :if={@event.status == "en_directo" && @polls != []}
+            style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;"
+          >
+            <article
+              :for={poll <- @polls}
+              style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.75rem;background:#f8fafc;"
+            >
+              <p style="margin:0 0 0.5rem;color:#475569;font-size:0.875rem;font-weight:700;">
+                {poll.question}
+              </p>
+              <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem;">
+                <.vote_button :for={choice <- poll.options} poll_id={poll.id} choice={choice} />
+              </div>
+
+              <div :if={map_size(Map.get(@vote_results, poll.id, %{})) > 0}>
+                <h3 style="font-size:0.8rem;font-weight:600;margin:0 0 0.5rem;color:#475569;">Recuento actual</h3>
+                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.375rem;">
+                  <li
+                    :for={{choice, count} <- Enum.sort(Map.get(@vote_results, poll.id, %{}))}
+                    style="display:flex;justify-content:space-between;"
+                  >
+                    <span style="font-size:0.875rem;">{choice}</span>
+                    <span style="font-weight:700;font-size:0.875rem;">{count}</span>
+                  </li>
+                </ul>
+              </div>
+
+              <div
+                :if={map_size(Map.get(@vote_results, poll.id, %{})) == 0}
+                style="color:#94a3b8;font-size:0.875rem;"
+              >
+                Sin votos aún.
+              </div>
+            </article>
           </div>
 
-          <div :if={@event.status == "en_directo" && !@poll} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
-            No hay una votación abierta para este evento.
+          <div :if={@event.status == "en_directo" && @polls == []} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
+            No hay votaciones abiertas para este evento.
           </div>
 
-          <div :if={@event.status != "en_directo"} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
+          <div :if={@event.status == "programado"} style="color:#64748b;font-size:0.875rem;margin-bottom:1rem;">
             Las votaciones solo están abiertas cuando el evento está en directo.
           </div>
 
-          <div :if={map_size(@vote_results) > 0}>
-            <h3 style="font-size:0.875rem;font-weight:600;margin:0 0 0.5rem;color:#475569;">Recuento actual</h3>
-            <ul style="list-style:none;padding:0;display:flex;flex-direction:column;gap:0.375rem;">
-              <li :for={{choice, count} <- Enum.sort(@vote_results)} style="display:flex;justify-content:space-between;">
-                <span style="font-size:0.875rem;">{choice}</span>
-                <span style="font-weight:700;font-size:0.875rem;">{count}</span>
-              </li>
-            </ul>
+          <div
+            :if={@event.status == "finalizado"}
+            style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;"
+          >
+            <p style="margin:0;color:#64748b;font-size:0.875rem;">
+              Resultado final de cada votación (evento cerrado).
+            </p>
+            <p :if={@final_poll_rows == []} style="color:#64748b;font-size:0.875rem;margin:0;">
+              No hubo votaciones en este evento.
+            </p>
+            <article
+              :for={row <- @final_poll_rows}
+              style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.75rem;background:#f8fafc;"
+            >
+              <p style="margin:0 0 0.35rem;font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;">
+                Votación finalizada
+              </p>
+              <p style="margin:0 0 0.75rem;color:#334155;font-size:0.9rem;font-weight:700;">
+                {row.poll.question}
+              </p>
+              <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.375rem;">
+                <li
+                  :for={choice <- row.poll.options}
+                  style="display:flex;justify-content:space-between;font-size:0.875rem;"
+                >
+                  <span>{choice}</span>
+                  <span style="font-weight:700;">{Map.get(row.results, choice, 0)}</span>
+                </li>
+              </ul>
+              <p
+                :if={Enum.sum(Map.values(row.results)) == 0}
+                style="margin:0.5rem 0 0;color:#94a3b8;font-size:0.8rem;"
+              >
+                Sin votos registrados en esta encuesta.
+              </p>
+            </article>
           </div>
 
-          <div :if={map_size(@vote_results) == 0} style="color:#94a3b8;font-size:0.875rem;">
-            Sin votos aún.
-          </div>
+          <.new_poll_form :if={@event.status == "en_directo" && admin?(@current_user)} form={@new_poll_form} />
         </section>
 
         <%!-- Resultado final --%>
@@ -271,11 +326,70 @@ defmodule EventPulseWeb.EventLive.Show do
     <button
       type="button"
       phx-click="cast_vote"
+      phx-value-poll-id={@poll_id}
       phx-value-choice={@choice}
       style="text-align:left;background:#f0f9ff;border:1px solid #bae6fd;border-radius:0.375rem;padding:0.4rem 0.75rem;font-size:0.875rem;cursor:pointer;"
     >
       Votar: {@choice}
     </button>
+    """
+  end
+
+  defp new_poll_form(assigns) do
+    ~H"""
+    <form
+      phx-change="validate_new_poll"
+      phx-submit="create_poll"
+      style="border-top:1px solid #e2e8f0;margin-top:1rem;padding-top:1rem;display:flex;flex-direction:column;gap:0.75rem;"
+    >
+      <h3 style="font-size:0.9rem;font-weight:700;margin:0;">Añadir votación</h3>
+
+      <div>
+        <label for="new-poll-question" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;">Pregunta</label>
+        <input
+          id="new-poll-question"
+          name="poll[question]"
+          type="text"
+          value={@form.question}
+          placeholder="Ej. ¿Qué opción prefieres?"
+          style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;"
+        />
+      </div>
+
+      <div>
+        <label for="new-poll-option-count" style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;">Número de opciones</label>
+        <select
+          id="new-poll-option-count"
+          name="poll[option_count]"
+          style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;background:#fff;"
+        >
+          <option value="2" selected={@form.option_count == 2}>2 opciones</option>
+          <option value="3" selected={@form.option_count == 3}>3 opciones</option>
+          <option value="4" selected={@form.option_count == 4}>4 opciones</option>
+        </select>
+      </div>
+
+      <div :for={{option, index} <- Enum.with_index(@form.options)}>
+        <label for={"new-poll-option-#{index}"} style="display:block;font-size:0.8rem;font-weight:600;margin-bottom:0.25rem;">
+          Opción {index + 1}
+        </label>
+        <input
+          id={"new-poll-option-#{index}"}
+          name={"poll[options][#{index}]"}
+          type="text"
+          value={option}
+          placeholder={"Texto de la opción #{index + 1}"}
+          style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;"
+        />
+      </div>
+
+      <button
+        type="submit"
+        style="background:#4f46e5;color:#fff;border:none;border-radius:0.375rem;padding:0.45rem 0.9rem;font-size:0.875rem;font-weight:700;cursor:pointer;"
+      >
+        Crear votación
+      </button>
+    </form>
     """
   end
 
@@ -325,8 +439,58 @@ defmodule EventPulseWeb.EventLive.Show do
     end
   end
 
-  def handle_event("cast_vote", %{"choice" => choice}, socket) do
-    poll = socket.assigns.poll
+  def handle_event("validate_new_poll", %{"poll" => params}, socket) do
+    {:noreply,
+     assign(socket, :new_poll_form, poll_form_from_params(params, socket.assigns.new_poll_form))}
+  end
+
+  def handle_event("create_poll", %{"poll" => params}, socket) do
+    poll_form = poll_form_from_params(params, socket.assigns.new_poll_form)
+
+    cond do
+      !admin?(socket.assigns.current_user) ->
+        {:noreply, put_flash(socket, :error, "No autorizado")}
+
+      socket.assigns.event.status != "en_directo" ->
+        {:noreply,
+         put_flash(socket, :error, "Solo puedes añadir votaciones en eventos en directo.")}
+
+      true ->
+        case required_poll_attrs(poll_form) do
+          {:ok, %{question: question, options: options}} ->
+            case Votes.create_poll(socket.assigns.event.id, question, options) do
+              {:ok, poll} ->
+                socket = subscribe_to_poll(socket, poll.id)
+                polls = open_polls(socket.assigns.event.id)
+
+                {:noreply,
+                 socket
+                 |> assign(:polls, polls)
+                 |> assign(:vote_results, vote_results_by_poll(polls))
+                 |> assign(:new_poll_form, new_poll_form())
+                 |> put_flash(:info, "Votación creada correctamente.")}
+
+              {:error, _changeset} ->
+                {:noreply,
+                 socket
+                 |> assign(:new_poll_form, poll_form)
+                 |> put_flash(
+                   :error,
+                   "No se pudo crear la votación. Revisa la pregunta y las opciones."
+                 )}
+            end
+
+          {:error, :invalid_poll} ->
+            {:noreply,
+             socket
+             |> assign(:new_poll_form, poll_form)
+             |> put_flash(:error, "La votación debe tener pregunta y al menos dos opciones.")}
+        end
+    end
+  end
+
+  def handle_event("cast_vote", %{"poll-id" => poll_id, "choice" => choice}, socket) do
+    poll = Enum.find(socket.assigns.polls, &(Integer.to_string(&1.id) == poll_id))
 
     cond do
       socket.assigns.event.status != "en_directo" ->
@@ -367,8 +531,23 @@ defmodule EventPulseWeb.EventLive.Show do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
-  def handle_info({:voted, results}, socket) do
-    {:noreply, assign(socket, :vote_results, results)}
+  def handle_info({:voted, _results}, socket) do
+    polls = open_polls(socket.assigns.event.id)
+
+    {:noreply,
+     socket
+     |> assign(:polls, polls)
+     |> assign(:vote_results, vote_results_by_poll(polls))}
+  end
+
+  def handle_info({:poll_created, poll}, socket) do
+    socket = subscribe_to_poll(socket, poll.id)
+    polls = open_polls(socket.assigns.event.id)
+
+    {:noreply,
+     socket
+     |> assign(:polls, polls)
+     |> assign(:vote_results, vote_results_by_poll(polls))}
   end
 
   def handle_info({:social_feeling, result}, socket) do
@@ -384,27 +563,28 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   def handle_info({:status_changed, updated_event}, socket) do
-    old_poll_id = socket.assigns.poll && socket.assigns.poll.id
+    old_poll_ids = Enum.map(socket.assigns.polls, & &1.id)
     event_id = updated_event.id
-    poll = primary_open_poll(event_id)
-    vote_results = if poll, do: VoteAggregator.get_results(poll.id), else: %{}
+    polls = open_polls(event_id)
+    vote_results = vote_results_by_poll(polls)
 
     socket =
       socket
       |> assign(:event, updated_event)
-      |> assign(:poll, poll)
+      |> assign(:polls, polls)
       |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
       |> assign(:vote_results, vote_results)
+      |> assign(:final_poll_rows, final_poll_rows(updated_event))
 
     socket =
       if connected?(socket) do
-        new_poll_id = poll && poll.id
+        new_poll_ids = Enum.map(polls, & &1.id)
 
-        if old_poll_id && old_poll_id != new_poll_id do
+        for old_poll_id <- old_poll_ids -- new_poll_ids do
           Phoenix.PubSub.unsubscribe(EventPulse.PubSub, "poll:#{old_poll_id}")
         end
 
-        if new_poll_id && new_poll_id != old_poll_id do
+        for new_poll_id <- new_poll_ids -- old_poll_ids do
           Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{new_poll_id}")
         end
 
@@ -424,12 +604,93 @@ defmodule EventPulseWeb.EventLive.Show do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp primary_open_poll(event_id) do
+  defp open_polls(event_id) do
     event_id
     |> Votes.list_polls()
     |> Enum.filter(&(&1.status == "open"))
-    |> Enum.sort_by(& &1.inserted_at, {:desc, DateTime})
-    |> List.first()
+    |> Enum.sort_by(& &1.inserted_at, DateTime)
+  end
+
+  defp final_poll_rows(%{status: "finalizado", id: event_id}) do
+    Votes.list_polls_with_db_results(event_id)
+  end
+
+  defp final_poll_rows(_event), do: []
+
+  defp vote_results_by_poll(polls) do
+    polls
+    |> Enum.map(fn poll -> {poll.id, VoteAggregator.get_results(poll.id)} end)
+    |> Map.new()
+  end
+
+  defp subscribe_to_poll(socket, poll_id) do
+    already_subscribed? = Enum.any?(socket.assigns.polls, &(&1.id == poll_id))
+
+    if connected?(socket) and not already_subscribed? do
+      Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll_id}")
+    end
+
+    socket
+  end
+
+  defp new_poll_form do
+    %{question: "", option_count: 2, options: ["", ""]}
+  end
+
+  defp poll_form_from_params(params, current) do
+    option_count =
+      params
+      |> Map.get("option_count", current.option_count)
+      |> parse_option_count()
+
+    options =
+      params
+      |> Map.get("options", %{})
+      |> options_from_params(current.options)
+      |> resize_options(option_count)
+
+    %{
+      question: Map.get(params, "question", current.question),
+      option_count: option_count,
+      options: options
+    }
+  end
+
+  defp required_poll_attrs(%{question: question, options: options}) do
+    question = String.trim(question)
+    options = options |> Enum.map(&String.trim/1) |> Enum.reject(&(&1 == ""))
+
+    if question != "" and length(options) >= 2 do
+      {:ok, %{question: question, options: options}}
+    else
+      {:error, :invalid_poll}
+    end
+  end
+
+  defp parse_option_count(value) when is_integer(value), do: value |> max(2) |> min(4)
+
+  defp parse_option_count(value) when is_binary(value) do
+    case Integer.parse(value) do
+      {count, ""} -> parse_option_count(count)
+      _ -> 2
+    end
+  end
+
+  defp parse_option_count(_), do: 2
+
+  defp options_from_params(options, current) when is_map(options) do
+    0..3
+    |> Enum.map(fn index ->
+      Map.get(options, Integer.to_string(index), Enum.at(current, index, ""))
+    end)
+  end
+
+  defp options_from_params(_options, current), do: current
+
+  defp resize_options(options, count) do
+    options
+    |> Enum.concat(List.duplicate("", count))
+    |> Enum.take(count)
   end
 
   defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id

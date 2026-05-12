@@ -20,9 +20,14 @@ defmodule EventPulse.Application do
 
     cluster_children = libcluster_supervisor_child()
 
-    # Un solo `VoteAggregator` en el clúster (`:global`). Debe arrancar **después** de
-    # libcluster para no registrar el nombre en nodos aún aislados y chocar al unirse.
-    vote_aggregator = [EventPulse.Votes.VoteAggregator]
+    # En la demo Docker solo una réplica arranca el agregador global; si varias lo
+    # hacen a la vez, `:global` resuelve el conflicto matando procesos y tira nodos.
+    vote_aggregator =
+      if start_vote_aggregator?() do
+        [EventPulse.Votes.VoteAggregator]
+      else
+        []
+      end
 
     # pool_size fijo en todo el clúster: si varía con schedulers_online/4,
     pubsub_and_endpoint = [
@@ -72,6 +77,10 @@ defmodule EventPulse.Application do
 
   defp redis_url do
     Application.get_env(:event_pulse, :redis_url, "redis://localhost:6379/0")
+  end
+
+  defp start_vote_aggregator? do
+    System.get_env("START_VOTE_AGGREGATOR", "true") != "false"
   end
 
   # Tell Phoenix to update the endpoint configuration
