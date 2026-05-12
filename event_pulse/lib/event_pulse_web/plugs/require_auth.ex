@@ -1,13 +1,17 @@
 defmodule EventPulseWeb.Plugs.RequireAuth do
-  #Nota para la presentación: revisa quien quiere entrar a ciertas partas de la aplicación y, si no tiene la sesión activa , lo
-  #echa de la página de login
+  @moduledoc """
+  Plug personalizado para proteger rutas que requieren autenticación. Se encarga de verificar si el usuario
+  tiene una sesión activa (es decir, si hay un user_id en la sesión) y, si no es así, redirige al usuario a la página de login con un mensaje de error.
+  Además, si el user_id existe pero no corresponde a un usuario válido en la base de
+  datos (ej. el usuario fue borrado mientras tenía la sesión activa), también limpia la sesión y redirige al login.
+  """
 
   @behaviour Plug # el módulo debe tener init y call
   import Plug.Conn
   import Phoenix.Controller
   use Phoenix.VerifiedRoutes, #usar rutas verificadas para evitar errores de rutas mal escritas
-    endpoint: EventPulseWeb.Endpoint,
-    router: EventPulseWeb.Router
+    endpoint: EventPulseWeb.Endpoint,#url base y generar urls completas
+    router: EventPulseWeb.Router #generar rutas basadas en el router (ejemplo: ~p"/login" en vez de "/login")
 
   alias EventPulse.Accounts.Auth
 

@@ -17,6 +17,8 @@ defmodule EventPulseWeb.ConnCase do
 
   use ExUnit.CaseTemplate
 
+  alias EventPulse.Accounts.Auth
+
   using do
     quote do
       # The default endpoint for testing
@@ -35,5 +37,26 @@ defmodule EventPulseWeb.ConnCase do
   setup tags do
     EventPulse.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  Registra un usuario y rellena la sesión de prueba con `user_id` y `demo_user_id`.
+  Útil para rutas protegidas con `RequireAuth` y LiveViews que necesitan ambos.
+  """
+  def register_and_log_in_user(conn) do
+    suffix = System.unique_integer([:positive])
+
+    {:ok, user} =
+      Auth.register(%{
+        "username" => "t#{suffix}",
+        "email" => "e#{suffix}@example.com",
+        "password" => "TestP1!xx"
+      })
+
+    conn
+    |> Plug.Test.init_test_session(%{
+      "user_id" => user.id,
+      "demo_user_id" => rem(suffix, 900_000) + 100_000
+    })
   end
 end

@@ -2,12 +2,24 @@ defmodule EventPulse.Accounts.Auth do
   alias EventPulse.Repo
   alias EventPulse.Accounts.User
 
+  @moduledoc """
+  Módulo encargado de manejar la lógica de autenticación y gestión de usuarios en la aplicación
+    (registro, login, permisos, etc). Este módulo actúa como una capa de abstracción entre los controladores y la base de datos, proporcionando funciones que los controladores pueden llamar para realizar operaciones relacionadas con los usuarios sin tener que preocuparse por los detalles de la implementación.
+  Contiene funciones para:
+  - Registrar nuevos usuarios (register)
+  - Autenticar usuarios existentes (login)
+  - Verificar roles y permisos (admin?, participant?, can_create_event?)
+  - Actualizar información de usuario (update_user, update_password)
+  - Borrar usuarios (delete_user)
+  """
+
   @roles_can_create_event ["participant", "admin"]
 
   # Función para registrar un nuevo usuario
   def register(attrs) do
+    #ejemplo de attrs: username: "eva", email: "evarendo@mail.com", password: "HoLa!145"
     %User{}
-    |> User.changeset(attrs)
+    |> User.changeset(attrs) #aplicamos las validacions del esquema user a los atributos
     |> Repo.insert()
   end
 
@@ -19,17 +31,20 @@ defmodule EventPulse.Accounts.Auth do
   # Función para obtener un usuario por su email
   def get_user_by_email(email) do
     Repo.get_by(User, email: email)
+    #Usa Repo.get_by para buscar el usuari por el campo email en la tabla User.
   end
 
   # Función para autenticar a un usuario con email y contraseña
   def login(email, password) do
     case get_user_by_email(email) do
-      nil ->
+      nil -> #Si no encuentra el usuario
         Pbkdf2.no_user_verify()
+        #Usamos pbkdf2.no_user_verify() para simular el tiempo que tomaría verificar una contraseña, evitando así ataques de timing.
         {:error, :invalid_credentials}
 
-      user ->
+      user -> #Si se encuentra el usuario
         if Pbkdf2.verify_pass(password, user.password_hash) do
+          #pbkdf2.verify_pass compara la contraseña proporcionada con el hash almacenado en la base de datos. Si coinciden, devuelve true.
           {:ok, user}
         else
           {:error, :invalid_credentials}

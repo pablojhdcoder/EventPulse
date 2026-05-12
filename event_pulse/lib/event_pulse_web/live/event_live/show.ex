@@ -1,18 +1,22 @@
 defmodule EventPulseWeb.EventLive.Show do
   @moduledoc """
-  Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
+  Vista LiveView de un evento: chat, votación en tiempo real (poll + `VoteAggregator`)
+  y panel Social Feeling vía PubSub.
 
-  Identidad: `EnsureDemoUserId` guarda `demo_user_id` en sesión; LiveView lo usa para votar
-  y como autor del chat (cada navegador con cookies distintas cuenta como usuario distinto).
+  El usuario autenticado (`EventPulse.Accounts.Auth`) define el autor en el chat
+  (`current_user.username`). Los votos siguen usando el entero `demo_user_id` de sesión
+  (`EnsureDemoUserId`) con `Votes.cast_vote/3` porque `Vote.user_id` es numérico.
 
   Mensajes PubSub:
   - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
   - `{:voted, results}` — votos (`VoteAggregator`, tópico `poll:<id>`)
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
+  - `{:social_feeling, result}` — resultado consolidado al cerrar
   """
 
   use EventPulseWeb, :live_view
 
+  alias EventPulse.Accounts.Auth
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
   alias EventPulse.SocialFeeling
@@ -27,53 +31,70 @@ defmodule EventPulseWeb.EventLive.Show do
 
   @impl true
   def mount(%{"id" => id_str}, session, socket) do
-    case Integer.parse(id_str) do
-      {event_id, ""} ->
-        case Events.get_event(event_id) do
-          {:ok, event} ->
-            event_key = Integer.to_string(event_id)
-            poll = primary_open_poll(event_id)
+    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
+    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
 
-            demo_user_id = normalize_demo_user_id(session["demo_user_id"])
+    if is_nil(current_user) do
+      {:ok,
+       push_navigate(socket, to: ~p"/login")
+       |> put_flash(:error, "Debes iniciar sesión para acceder.")}
+    else
+      case Integer.parse(id_str) do
+        {event_id, ""} ->
+          case Events.get_event(event_id) do
+            {:ok, event} ->
+              event_key = Integer.to_string(event_id)
+              poll = primary_open_poll(event_id)
 
-            vote_results =
-              if poll, do: VoteAggregator.get_results(poll.id), else: %{}
+              demo_user_id =
+                normalize_demo_user_id(
+                  Map.get(session, "demo_user_id") || Map.get(session, :demo_user_id)
+                )
 
-            socket =
-              socket
-              |> assign(:event, event)
-              |> assign(:event_key, event_key)
-              |> assign(:poll, poll)
-              |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
-              |> assign(:demo_user_id, demo_user_id)
-              |> assign(:vote_results, vote_results)
-              |> assign(:draft, "")
-              |> assign(:max_body_length, @max_body_length)
-              |> stream(:messages, [], dom_id: &message_dom_id/1)
+              vote_results =
+                if poll, do: VoteAggregator.get_results(poll.id), else: %{}
 
-            socket =
-              if connected?(socket) do
-                Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
-                Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
+              socket =
+                socket
+                |> assign(:event, event)
+                |> assign(:event_key, event_key)
+                |> assign(:poll, poll)
+                |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
+                |> assign(:current_user, current_user)
+                |> assign(:demo_user_id, demo_user_id)
+                |> assign(:vote_results, vote_results)
+                |> assign(:draft, "")
+                |> assign(:max_body_length, @max_body_length)
+                |> stream(:messages, [], dom_id: &message_dom_id/1)
 
-                if poll do
-                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+              socket =
+                if connected?(socket) do
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
+
+                  if poll do
+                    Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+                  end
+
+                  history = EventRoom.recent_messages(event_key)
+                  stream(socket, :messages, history, reset: true)
+                else
+                  socket
                 end
 
-                history = EventRoom.recent_messages(event_key)
-                stream(socket, :messages, history, reset: true)
-              else
-                socket
-              end
+              {:ok, socket}
 
-            {:ok, socket}
+            :error ->
+              {:ok,
+               push_navigate(socket, to: ~p"/")
+               |> put_flash(:error, "Evento no encontrado.")}
+          end
 
-          :error ->
-            {:ok, push_navigate(socket, to: ~p"/") |> put_flash(:error, "Evento no encontrado.")}
-        end
-
-      _ ->
-        {:ok, push_navigate(socket, to: ~p"/") |> put_flash(:error, "ID de evento inválido.")}
+        _ ->
+          {:ok,
+           push_navigate(socket, to: ~p"/")
+           |> put_flash(:error, "ID de evento inválido.")}
+      end
     end
   end
 
@@ -237,7 +258,7 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def handle_event("send_message", %{"body" => body}, socket) do
     if socket.assigns.event.status == "en_directo" do
-      author = "demo_#{socket.assigns.demo_user_id}"
+      author = socket.assigns.current_user.username
 
       case EventRoom.send_message(socket.assigns.event_key, %{author: author, body: body}) do
         :ok ->
@@ -366,7 +387,6 @@ defmodule EventPulseWeb.EventLive.Show do
     end
   end
 
-  # Plug debería garantizar sesión; fallback defensivo para tests sin plug.
   defp normalize_demo_user_id(_), do: :rand.uniform(999_999)
 
   defp message_dom_id(%{id: id}) when is_integer(id), do: "msg-#{id}"

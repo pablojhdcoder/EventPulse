@@ -5,6 +5,10 @@ defmodule EventPulseWeb.EventLiveTest do
 
   alias EventPulse.Chat.EventRoom
 
+  setup %{conn: conn} do
+    {:ok, conn: register_and_log_in_user(conn)}
+  end
+
   # ---------------------------------------------------------------------------
   # EventLive.Index
   # ---------------------------------------------------------------------------
