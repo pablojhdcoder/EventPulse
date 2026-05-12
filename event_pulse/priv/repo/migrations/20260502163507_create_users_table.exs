@@ -1,6 +1,13 @@
 defmodule EventPulse.Repo.Migrations.CreateUsersTable do
   use Ecto.Migration
 
+  @moduledoc """
+  Esta migración crea la tabla "users" en la base de datos con los campos necesarios
+  para almacenar la información de los usuarios registrados en la aplicación. La tabla incluye campos para el ID (UUID), nombre de usuario, email, hash de contraseña, rol y timestamps.
+  Además, se crean índices únicos para los campos "email" y "username" para garantizar que
+  no haya usuarios duplicados con el mismo correo o nombre de usuario, y se agrega una restricción para asegurar que el campo "role" solo acepte los valores "participant" o "admin".
+  """
+
   def change do
 
     execute "CREATE EXTENSION IF NOT EXISTS \"pgcrypto\""

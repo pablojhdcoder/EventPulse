@@ -2,10 +2,16 @@ defmodule EventPulse.Accounts.Auth do
   alias EventPulse.Repo
   alias EventPulse.Accounts.User
 
-  # Módulo de la lógica de negocio: define que hacer con el usuario
-  #Interactua con la base de datos a través de Repo
-  #COntiene funciones para la lógica de autenticación, permisos y operaciones CRUD
-  #Coordina las validaciones de user.ex con las operaciones de la BD
+  @moduledoc """
+  Módulo encargado de manejar la lógica de autenticación y gestión de usuarios en la aplicación
+    (registro, login, permisos, etc). Este módulo actúa como una capa de abstracción entre los controladores y la base de datos, proporcionando funciones que los controladores pueden llamar para realizar operaciones relacionadas con los usuarios sin tener que preocuparse por los detalles de la implementación.
+  Contiene funciones para:
+  - Registrar nuevos usuarios (register)
+  - Autenticar usuarios existentes (login)
+  - Verificar roles y permisos (admin?, participant?, can_create_event?)
+  - Actualizar información de usuario (update_user, update_password)
+  - Borrar usuarios (delete_user)
+  """
 
   @roles_can_create_event ["participant", "admin"]
 

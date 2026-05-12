@@ -1,4 +1,16 @@
 defmodule EventPulse.Accounts.AuthTest do
+  @moduledoc """
+  Este módulo contiene pruebas unitarias para el módulo EventPulse.Accounts.Auth, que maneja
+  la lógica de autenticación y gestión de usuarios en la aplicación. Las pruebas cubren las funciones principales de Auth, incluyendo:
+- register/1: para registrar nuevos usuarios
+- login/2: para autenticar usuarios existentes
+- get_user/1 y get_user_by_email/1: para buscar usuarios
+- Funciones de verificación de roles (admin?, participant?, can_create_event?)
+- update_user/2: para actualizar información de usuario
+- update_password/2: para cambiar la contraseña de un usuario
+- delete_user/1: para borrar usuarios
+  Cada prueba verifica tanto los casos exitosos como los casos de error (ej. registro con email repetido, login con contraseña incorrecta, etc) para asegurar que la lógica de autenticación funcione correctamente y maneje adecuadamente las situaciones comunes que pueden ocurrir en la aplicación.
+  """
   # async: true permite ejecutar este test en paralelo con otros para ganar velocidad.
   use EventPulse.DataCase, async: true
 
