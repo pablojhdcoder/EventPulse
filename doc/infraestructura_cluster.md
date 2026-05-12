@@ -97,7 +97,8 @@ Esto levanta automáticamente la base de datos de test en el puerto 5433 del hos
 - `DATABASE_URL=ecto://postgres:postgres@db/event_pulse_dev`
 - `SECRET_KEY_BASE` debe ser único y seguro en producción
 - `DNS_CLUSTER_QUERY=app`
-- `ERL_COOKIE=event_pulse_cookie`
+- `CLUSTER_PEER_HOSTS` (demo Docker en la raíz del repo): lista `web1.local,web2.local,...`; si está definida, el release usa **`RELEASE_DISTRIBUTION=name`** para que `libcluster` (Epmd) y **PubSub PG2** funcionen entre réplicas.
+- `RELEASE_COOKIE` / `ERL_COOKIE` alineados con el `cookie` del release
 
 ## 5. Procedimiento de operación
 

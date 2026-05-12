@@ -64,8 +64,6 @@ services:
     hostname: migrate.local
     build:
       <<: *web_build
-      args:
-        RELEASE_HOSTNAME: migrate.local
     depends_on:
       postgres:
         condition: service_healthy
@@ -85,8 +83,6 @@ services:
     hostname: web1.local
     build:
       <<: *web_build
-      args:
-        RELEASE_HOSTNAME: web1.local
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local
@@ -100,8 +96,6 @@ services:
     hostname: web2.local
     build:
       <<: *web_build
-      args:
-        RELEASE_HOSTNAME: web2.local
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local
@@ -115,8 +109,6 @@ services:
     hostname: web3.local
     build:
       <<: *web_build
-      args:
-        RELEASE_HOSTNAME: web3.local
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local

@@ -7,46 +7,62 @@ defmodule EventPulse.Accounts.User do
   """
   use Ecto.Schema
   import Ecto.Changeset
-  #GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos. SE genera automáticamente durante
-  #la inserccion del usaurio con Repo.insert()
+
+  # GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos. SE genera automáticamente durante
+  # la inserccion del usaurio con Repo.insert()
   @primary_key {:id, :binary_id, autogenerate: true}
-  #CUando otros schemas referencien a User, sus claves foráneas también serán UUID
+  # CUando otros schemas referencien a User, sus claves foráneas también serán UUID
   @foreign_key_type :binary_id
 
   schema "users" do
     field :username, :string
     field :email, :string
     field :password_hash, :string
-    field :password, :string, virtual: true #Campo temporal. A la bd llega la contraseña hasheada
+    # Campo temporal. A la bd llega la contraseña hasheada
+    field :password, :string, virtual: true
     field :role, :string, default: "participant"
 
     timestamps()
+
     # Agrega campos inserted_at (fecha creación cuenta) y updated_at (fecha última modificación) automáticamente.
   end
 
   # Registrar usuario nuevo
   def changeset(user, attrs) do
     user
-    |> cast(attrs, [:username, :email, :password, :role]) #Permitir pasar role para registrar admin en tests
+    # Permitir pasar role para registrar admin en tests
+    |> cast(attrs, [:username, :email, :password, :role])
     |> validate_required([:username, :email, :password])
 
     # Validar formato básico de email (debe contener @ y un dominio válido)
     |> validate_format(:email, ~r/@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$/, message: "Email inválido")
 
     # Validar longitud del username (mínimo 3, máximo 20 caracteres) y el formato del username (solo letras, números y guiones bajos)
-    |> validate_length(:username, min: 3, max: 20, message: "El nombre de usuario debe tener entre 3 y 20 caracteres")
-    |> validate_format(:username, ~r/^[a-zA-Z0-9_]+$/, message: "El nombre de usuario solo puede contener letras, números y guiones bajos")
+    |> validate_length(:username,
+      min: 3,
+      max: 20,
+      message: "El nombre de usuario debe tener entre 3 y 20 caracteres"
+    )
+    |> validate_format(:username, ~r/^[a-zA-Z0-9_]+$/,
+      message: "El nombre de usuario solo puede contener letras, números y guiones bajos"
+    )
 
     # Validar que el rol sea uno de los valores válidos
     |> validate_inclusion(:role, ["participant", "admin"])
     # Validar que la contraseña tenga al menos 8 caracteres y contenga mayúsculas, minúsculas, números y símbolos
-    |> validate_length(:password, min: 8, message: "La contraseña debe tener al menos 8 caracteres")
-    |> validate_format(:password, ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos")
-
+    |> validate_length(:password,
+      min: 8,
+      message: "La contraseña debe tener al menos 8 caracteres"
+    )
+    |> validate_format(
+      :password,
+      ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos"
+    )
     |> unique_constraint(:email)
     |> unique_constraint(:username)
-
-    |> hash_password() #La contraseña se guarda en la base de datos hasheada
+    # La contraseña se guarda en la base de datos hasheada
+    |> hash_password()
   end
 
   # Editar email y/o username
@@ -59,7 +75,6 @@ defmodule EventPulse.Accounts.User do
     # Validar longitud del username (mínimo 3, máximo 20 caracteres) y el formato del username (solo letras, números y guiones bajos)
     |> validate_length(:username, min: 3, max: 20)
     |> validate_format(:username, ~r/^[a-zA-Z0-9_]+$/)
-
     |> unique_constraint(:email)
     |> unique_constraint(:username)
   end
@@ -69,8 +84,15 @@ defmodule EventPulse.Accounts.User do
     user
     |> cast(attrs, [:password])
     |> validate_required([:password])
-    |> validate_length(:password, min: 8, message: "La contraseña debe tener al menos 8 caracteres")
-    |> validate_format(:password, ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/, message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos")
+    |> validate_length(:password,
+      min: 8,
+      message: "La contraseña debe tener al menos 8 caracteres"
+    )
+    |> validate_format(
+      :password,
+      ~r/(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/,
+      message: "La contraseña debe incluir mayúsculas, minúsculas, números y símbolos"
+    )
     |> hash_password()
   end
 

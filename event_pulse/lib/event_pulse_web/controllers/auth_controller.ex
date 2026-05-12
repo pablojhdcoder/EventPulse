@@ -7,7 +7,6 @@ defmodule EventPulseWeb.AuthController do
   de negocio (AUth.ex) y decidir que respuesta enviarle al usuario (redireccionar, mostrar mensaje, etc)
   """
 
-
   alias EventPulse.Accounts.Auth
 
   # POST /login: Se activa cuando el usuario pulsa "Iniciar sesión" en el formulario.
@@ -29,14 +28,19 @@ defmodule EventPulseWeb.AuthController do
   end
 
   # POST /register: Se activa cuando el usuario pulsa "Registrarse" en el formulario
-  def register(conn, %{"username" => username, "email" => email, "password" => password, "password_confirmation" => password_confirmation}) do
+  def register(conn, %{
+        "username" => username,
+        "email" => email,
+        "password" => password,
+        "password_confirmation" => password_confirmation
+      }) do
     # Validar que las contraseñas coincidan
     if password != password_confirmation do
       conn
       |> put_flash(:error, "Las contraseñas no coinciden.")
       |> redirect(to: ~p"/register")
     else
-      #Preparamos los datos para enviarlos al AUth.register
+      # Preparamos los datos para enviarlos al AUth.register
       attrs = %{
         "username" => String.trim(username),
         "email" => String.trim(email),

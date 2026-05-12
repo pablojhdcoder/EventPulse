@@ -2,13 +2,13 @@ defmodule EventPulse.Accounts.AuthTest do
   @moduledoc """
   Este módulo contiene pruebas unitarias para el módulo EventPulse.Accounts.Auth, que maneja
   la lógica de autenticación y gestión de usuarios en la aplicación. Las pruebas cubren las funciones principales de Auth, incluyendo:
-- register/1: para registrar nuevos usuarios
-- login/2: para autenticar usuarios existentes
-- get_user/1 y get_user_by_email/1: para buscar usuarios
-- Funciones de verificación de roles (admin?, participant?, can_create_event?)
-- update_user/2: para actualizar información de usuario
-- update_password/2: para cambiar la contraseña de un usuario
-- delete_user/1: para borrar usuarios
+  - register/1: para registrar nuevos usuarios
+  - login/2: para autenticar usuarios existentes
+  - get_user/1 y get_user_by_email/1: para buscar usuarios
+  - Funciones de verificación de roles (admin?, participant?, can_create_event?)
+  - update_user/2: para actualizar información de usuario
+  - update_password/2: para cambiar la contraseña de un usuario
+  - delete_user/1: para borrar usuarios
   Cada prueba verifica tanto los casos exitosos como los casos de error (ej. registro con email repetido, login con contraseña incorrecta, etc) para asegurar que la lógica de autenticación funcione correctamente y maneje adecuadamente las situaciones comunes que pueden ocurrir en la aplicación.
   """
   # async: true permite ejecutar este test en paralelo con otros para ganar velocidad.
@@ -17,7 +17,7 @@ defmodule EventPulse.Accounts.AuthTest do
   alias EventPulse.Accounts.Auth
   alias EventPulse.Accounts.User
 
- #Función helper para generar atributos válidos de usuario en los tests y no andar repitiendo
+  # Función helper para generar atributos válidos de usuario en los tests y no andar repitiendo
   defp valid_attrs do
     %{
       "username" => "testuser",
@@ -27,7 +27,7 @@ defmodule EventPulse.Accounts.AuthTest do
     }
   end
 
-#Registro de usuario
+  # Registro de usuario
 
   describe "register/1" do
     test "registra un usuario con datos válidos" do
@@ -74,7 +74,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
-  #Login de usuario
+  # Login de usuario
   describe "login/2" do
     setup do
       {:ok, user} = Auth.register(valid_attrs())
@@ -95,7 +95,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
- #Buscar usuario
+  # Buscar usuario
   describe "get_user/1" do
     test "devuelve el usuario si existe" do
       {:ok, user} = Auth.register(valid_attrs())
@@ -125,12 +125,13 @@ defmodule EventPulse.Accounts.AuthTest do
       {:ok, user} = Auth.register(valid_attrs())
       assert not Auth.admin?(user)
 
-      {:ok, admin} = Auth.register(%{
-        "username" => "adminuser",
-        "email" => "admin@example.com",
-        "password" => "Password1!",
-        "role" => "admin"
-      })
+      {:ok, admin} =
+        Auth.register(%{
+          "username" => "adminuser",
+          "email" => "admin@example.com",
+          "password" => "Password1!",
+          "role" => "admin"
+        })
 
       assert Auth.admin?(admin)
       assert Auth.can_create_event?(admin)
@@ -143,7 +144,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
-  #Actualizar datos de usuario
+  # Actualizar datos de usuario
   describe "update_user/2" do
     setup do
       {:ok, user} = Auth.register(valid_attrs())
@@ -151,25 +152,31 @@ defmodule EventPulse.Accounts.AuthTest do
     end
 
     test "actualiza email y username correctamente", %{user: user} do
-      assert {:ok, updated} = Auth.update_user(user, %{
-        "username" => "newusername",
-        "email" => "new@example.com"
-      })
+      assert {:ok, updated} =
+               Auth.update_user(user, %{
+                 "username" => "newusername",
+                 "email" => "new@example.com"
+               })
+
       assert updated.username == "newusername"
       assert updated.email == "new@example.com"
     end
 
     test "falla si el email nuevo ya está en uso", %{user: user} do
-      {:ok, _other} = Auth.register(%{
-        "username" => "otrouser",
-        "email" => "otro@example.com",
-        "password" => "Password1!",
-        "role" => "participant"
-      })
-      assert {:error, changeset} = Auth.update_user(user, %{
-        "username" => "testuser",
-        "email" => "otro@example.com"
-      })
+      {:ok, _other} =
+        Auth.register(%{
+          "username" => "otrouser",
+          "email" => "otro@example.com",
+          "password" => "Password1!",
+          "role" => "participant"
+        })
+
+      assert {:error, changeset} =
+               Auth.update_user(user, %{
+                 "username" => "testuser",
+                 "email" => "otro@example.com"
+               })
+
       assert %{email: ["has already been taken"]} = errors_on(changeset)
     end
   end
@@ -195,7 +202,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
-  #Borrar usuario
+  # Borrar usuario
   describe "delete_user/1" do
     test "borra el usuario correctamente" do
       {:ok, user} = Auth.register(valid_attrs())

@@ -63,6 +63,7 @@ defmodule EventPulse.ChatBuffer do
         Logger.warning(
           "chat_buffer: get_last_messages failed room=#{room_id}: #{inspect(reason)}"
         )
+
         []
     end
   end
@@ -152,7 +153,10 @@ defmodule EventPulse.ChatBuffer do
     Redix.command(@redis_name, command)
   rescue
     exception ->
-      Logger.warning("chat_buffer: redix unavailable command=#{inspect(command)} error=#{inspect(exception)}")
+      Logger.warning(
+        "chat_buffer: redix unavailable command=#{inspect(command)} error=#{inspect(exception)}"
+      )
+
       {:error, :redis_unavailable}
   end
 end

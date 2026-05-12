@@ -22,9 +22,6 @@ RUN find rel -type f \( -name "*.eex" -o -name "*.sh" \) -exec sed -i 's/\r$//' 
        find rel/overlays/bin -type f ! -name "*.bat" -exec sed -i 's/\r$//' {} \; ; \
      fi
 
-ARG RELEASE_HOSTNAME=localhost
-ENV HOSTNAME=${RELEASE_HOSTNAME}
-
 RUN mix compile
 RUN mix release
 

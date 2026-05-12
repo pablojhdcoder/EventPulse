@@ -41,7 +41,9 @@ create_event_once = fn attrs ->
 end
 
 ensure_poll = fn event, question, options ->
-  case Repo.one(from p in Poll, where: p.event_id == ^event.id and p.question == ^question, limit: 1) do
+  case Repo.one(
+         from p in Poll, where: p.event_id == ^event.id and p.question == ^question, limit: 1
+       ) do
     %Poll{} = p ->
       p
 

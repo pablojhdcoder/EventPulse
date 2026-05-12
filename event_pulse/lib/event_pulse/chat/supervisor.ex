@@ -18,7 +18,9 @@ defmodule EventPulse.Chat.Supervisor do
   @doc "Asegura que exista un proceso de sala para el evento"
   def ensure_room(event_id) do
     case Registry.lookup(EventPulse.Chat.RoomRegistry, event_id) do
-      [{pid, _meta}] -> {:ok, pid}
+      [{pid, _meta}] ->
+        {:ok, pid}
+
       [] ->
         DynamicSupervisor.start_child(
           EventPulse.Chat.RoomSupervisor,

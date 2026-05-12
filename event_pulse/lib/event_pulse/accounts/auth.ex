@@ -17,9 +17,10 @@ defmodule EventPulse.Accounts.Auth do
 
   # Función para registrar un nuevo usuario
   def register(attrs) do
-    #ejemplo de attrs: username: "eva", email: "evarendo@mail.com", password: "HoLa!145"
+    # ejemplo de attrs: username: "eva", email: "evarendo@mail.com", password: "HoLa!145"
     %User{}
-    |> User.changeset(attrs) #aplicamos las validacions del esquema user a los atributos
+    # aplicamos las validacions del esquema user a los atributos
+    |> User.changeset(attrs)
     |> Repo.insert()
   end
 
@@ -31,20 +32,23 @@ defmodule EventPulse.Accounts.Auth do
   # Función para obtener un usuario por su email
   def get_user_by_email(email) do
     Repo.get_by(User, email: email)
-    #Usa Repo.get_by para buscar el usuari por el campo email en la tabla User.
+    # Usa Repo.get_by para buscar el usuari por el campo email en la tabla User.
   end
 
   # Función para autenticar a un usuario con email y contraseña
   def login(email, password) do
     case get_user_by_email(email) do
-      nil -> #Si no encuentra el usuario
+      # Si no encuentra el usuario
+      nil ->
         Pbkdf2.no_user_verify()
-        #Usamos pbkdf2.no_user_verify() para simular el tiempo que tomaría verificar una contraseña, evitando así ataques de timing.
+
+        # Usamos pbkdf2.no_user_verify() para simular el tiempo que tomaría verificar una contraseña, evitando así ataques de timing.
         {:error, :invalid_credentials}
 
-      user -> #Si se encuentra el usuario
+      # Si se encuentra el usuario
+      user ->
         if Pbkdf2.verify_pass(password, user.password_hash) do
-          #pbkdf2.verify_pass compara la contraseña proporcionada con el hash almacenado en la base de datos. Si coinciden, devuelve true.
+          # pbkdf2.verify_pass compara la contraseña proporcionada con el hash almacenado en la base de datos. Si coinciden, devuelve true.
           {:ok, user}
         else
           {:error, :invalid_credentials}

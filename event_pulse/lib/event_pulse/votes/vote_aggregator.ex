@@ -6,6 +6,15 @@ defmodule EventPulse.Votes.VoteAggregator do
   en micro-lotes. Si `Repo.insert` falla, los votos afectados permanecen en `pending`
   y se reintentan en el siguiente ciclo.
 
+  ## Clúster (Docker / libcluster)
+
+  Se registra con `{:global, __MODULE__}`: existe **un solo** agregador en todo el
+  clúster. Cada réplica arranca el mismo hijo en el `Application`; en los nodos que
+  no ganan el registro global, `start_link/1` devuelve `{:ok, pid}` del proceso que
+  ya vive en otro nodo, de modo que el supervisor enlaza al líder remoto en lugar
+  de duplicar estado. `cast_vote/3` y `get_results/1` siguen usando el nombre global,
+  así que cualquier nodo enruta al mismo GenServer.
+
   En tests (`sync_persist: true`), cada `cast_vote` fuerza un flush inmediato.
   """
 
@@ -20,9 +29,19 @@ defmodule EventPulse.Votes.VoteAggregator do
   @flush_interval 500
   @name {:global, __MODULE__}
 
-  def start_link(opts) do
+  def start_link(opts \\ []) do
     opts = Keyword.put_new(opts, :name, @name)
-    GenServer.start_link(__MODULE__, %{votes: %{}, pending: []}, opts)
+
+    case GenServer.start_link(__MODULE__, %{votes: %{}, pending: []}, opts) do
+      {:ok, pid} ->
+        {:ok, pid}
+
+      {:error, {:already_registered, leader_pid}} ->
+        {:ok, leader_pid}
+
+      {:error, _} = error ->
+        error
+    end
   end
 
   @doc """

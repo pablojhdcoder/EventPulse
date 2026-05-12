@@ -12,7 +12,6 @@ defmodule EventPulse.Application do
       {Task.Supervisor, name: EventPulse.TaskSupervisor},
       EventPulse.Chat.Supervisor,
       EventPulse.Repo,
-      EventPulse.Votes.VoteAggregator,
       {Registry, keys: :unique, name: EventPulse.EventRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: EventPulse.EventSupervisor},
       {EventPulse.SocialFeeling.Worker, name: EventPulse.SocialFeeling.Worker},
@@ -20,6 +19,10 @@ defmodule EventPulse.Application do
     ]
 
     cluster_children = libcluster_supervisor_child()
+
+    # Un solo `VoteAggregator` en el clúster (`:global`). Debe arrancar **después** de
+    # libcluster para no registrar el nombre en nodos aún aislados y chocar al unirse.
+    vote_aggregator = [EventPulse.Votes.VoteAggregator]
 
     # pool_size fijo en todo el clúster: si varía con schedulers_online/4,
     pubsub_and_endpoint = [
@@ -30,7 +33,7 @@ defmodule EventPulse.Application do
       EventPulseWeb.Endpoint
     ]
 
-    children = front_children ++ cluster_children ++ pubsub_and_endpoint
+    children = front_children ++ cluster_children ++ vote_aggregator ++ pubsub_and_endpoint
 
     opts = [strategy: :one_for_one, name: EventPulse.Supervisor]
     Supervisor.start_link(children, opts)
