@@ -82,17 +82,22 @@ defmodule EventPulseWeb.EventLive.Index do
 
   @impl true
   def handle_info({:status_changed, _event}, socket) do
-    events =
-      if socket.assigns.category_filter == "" do
-        Events.list_events()
-      else
-        Events.list_events_by_category(socket.assigns.category_filter)
-      end
+    {:noreply, assign(socket, :events, reload_events(socket))}
+  end
 
-    {:noreply, assign(socket, events: events)}
+  def handle_info(:events_catalog_changed, socket) do
+    {:noreply, assign(socket, :events, reload_events(socket))}
   end
 
   def handle_info(_msg, socket), do: {:noreply, socket}
+
+  defp reload_events(socket) do
+    if socket.assigns.category_filter == "" do
+      Events.list_events()
+    else
+      Events.list_events_by_category(socket.assigns.category_filter)
+    end
+  end
 
   @impl true
   def render(assigns) do

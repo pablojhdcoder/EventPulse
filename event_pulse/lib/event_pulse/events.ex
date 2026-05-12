@@ -60,19 +60,40 @@ defmodule EventPulse.Events do
   def get_event!(id), do: Repo.get!(Event, id)
 
   def create_event(attrs \\ %{}) do
-    %Event{}
-    |> Event.changeset(attrs)
-    |> Repo.insert()
+    case %Event{}
+         |> Event.changeset(attrs)
+         |> Repo.insert() do
+      {:ok, _} = ok ->
+        broadcast_events_catalog_changed()
+        ok
+
+      err ->
+        err
+    end
   end
 
   def update_event(%Event{} = event, attrs) do
-    event
-    |> Event.changeset(attrs)
-    |> Repo.update()
+    case event
+         |> Event.changeset(attrs)
+         |> Repo.update() do
+      {:ok, _} = ok ->
+        broadcast_events_catalog_changed()
+        ok
+
+      err ->
+        err
+    end
   end
 
   def delete_event(%Event{} = event) do
-    Repo.delete(event)
+    case Repo.delete(event) do
+      {:ok, _} = ok ->
+        broadcast_events_catalog_changed()
+        ok
+
+      err ->
+        err
+    end
   end
 
   def close_event(%Event{} = event) do
@@ -142,6 +163,10 @@ defmodule EventPulse.Events do
 
     from(p in Poll, where: p.event_id == ^event_id and p.status != "closed")
     |> Repo.update_all(set: [status: "closed", updated_at: now])
+  end
+
+  defp broadcast_events_catalog_changed do
+    Phoenix.PubSub.broadcast(EventPulse.PubSub, "events:updates", :events_catalog_changed)
   end
 
   defp broadcast_status_changed(%Event{} = event) do
