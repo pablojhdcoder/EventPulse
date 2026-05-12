@@ -261,8 +261,11 @@ defmodule EventPulseWeb.EventLive.Show do
           </p>
         </section>
 
-        <%!-- Panel de chat --%>
-        <section style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:0.75rem;">
+        <%!-- Panel de chat (oculto al finalizar el evento) --%>
+        <section
+          :if={@event.status != "finalizado"}
+          style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:0.75rem;"
+        >
           <h2 style="font-size:1rem;font-weight:600;margin:0;">Chat en directo</h2>
 
           <div
