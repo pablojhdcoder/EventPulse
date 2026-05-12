@@ -31,13 +31,15 @@ defmodule EventPulseWeb.EventLive.Show do
           {:ok, event} ->
             event_key = Integer.to_string(event_id)
 
-            demo_user_id = normalize_demo_user_id(session["demo_user_id"])
+            #demo_user_id = normalize_demo_user_id(session["demo_user_id"])
+            current_user = socket.assigns.current_user
 
             socket =
               socket
               |> assign(:event, event)
               |> assign(:event_key, event_key)
-              |> assign(:demo_user_id, demo_user_id)
+              #|> assign(:demo_user_id, demo_user_id)
+              |> assign(:current_user, current_user)
               |> assign(:vote_results, VoteAggregator.get_results(event_id))
               |> assign(:draft, "")
               |> assign(:max_body_length, @max_body_length)
@@ -198,7 +200,8 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def handle_event("send_message", %{"body" => body}, socket) do
     if socket.assigns.event.status == "en_directo" do
-      author = "demo_#{socket.assigns.demo_user_id}"
+      #Cambiamos el demo_user_id por el current_user.username para mostrar el nombre del usuario en el chat.
+      author = socket.assigns.current_user.username
 
       case EventRoom.send_message(socket.assigns.event_key, %{author: author, body: body}) do
         :ok ->
@@ -222,7 +225,8 @@ defmodule EventPulseWeb.EventLive.Show do
   def handle_event("cast_vote", %{"choice" => choice}, socket) do
     if socket.assigns.event.status == "en_directo" do
       event_id = socket.assigns.event.id
-      user_id = socket.assigns.demo_user_id
+      #user_id = socket.assigns.demo_user_id
+      user_id = socket.assigns.current_user.id
       VoteAggregator.cast_vote(event_id, user_id, choice)
       {:noreply, socket}
     else
@@ -256,17 +260,17 @@ defmodule EventPulseWeb.EventLive.Show do
   # Helpers
   # ---------------------------------------------------------------------------
 
-  defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id
+  #defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id
 
-  defp normalize_demo_user_id(id) when is_binary(id) do
-    case Integer.parse(id) do
-      {n, ""} when n > 0 -> n
-      _ -> 1
-    end
-  end
+  #defp normalize_demo_user_id(id) when is_binary(id) do
+  #  case Integer.parse(id) do
+  #    {n, ""} when n > 0 -> n
+  #    _ -> 1
+  #  end
+  #end
 
   # Plug debería garantizar sesión; fallback defensivo para tests sin plug.
-  defp normalize_demo_user_id(_), do: :rand.uniform(999_999)
+  #defp normalize_demo_user_id(_), do: :rand.uniform(999_999)
 
   defp message_dom_id(%{id: id}) when is_integer(id), do: "msg-#{id}"
 
