@@ -6,8 +6,8 @@ defmodule EventPulseWeb.Plugs.RequireAuth do
   import Plug.Conn
   import Phoenix.Controller
   use Phoenix.VerifiedRoutes, #usar rutas verificadas para evitar errores de rutas mal escritas
-    endpoint: EventPulseWeb.Endpoint,
-    router: EventPulseWeb.Router
+    endpoint: EventPulseWeb.Endpoint,#url base y generar urls completas
+    router: EventPulseWeb.Router #generar rutas basadas en el router (ejemplo: ~p"/login" en vez de "/login")
 
   alias EventPulse.Accounts.Auth
 

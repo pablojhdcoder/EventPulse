@@ -1,21 +1,21 @@
 defmodule EventPulseWeb.AuthLive.Login do
   use EventPulseWeb, :live_view
 
-  # ---------------------------------------------------------------------------
-  # Mount — se ejecuta cuando el usuario entra a la página de login
-  # Inicializa el formulario vacío y los posibles errores
-  # ---------------------------------------------------------------------------
-  @impl true
+  @moduledoc """
+  Componente LiveView encargado de mostrar el formulario de login y manejar la interacción del usuario con dicho formulario.
+  Se encarga de generar el token CSRF para proteger el formulario, mostrar mensajes de error (ej. "email o contraseña incorrectos") y enviar los datos al controlador AuthController para que procese el login.
+  """
+  alias EventPulse.Accounts.Auth
+
+  #Funcion mount inicializa el estado del componente LiveView.
   def mount(_params, _session, socket) do
     {:ok,
      socket
-     |> assign(:email, "")
-     |> assign(:csrf_token, Phoenix.Controller.get_csrf_token())}
+     |> assign(:email, "") #Cuando se carge la pagina, el campo email tiene que estar vacío.
+     |> assign(:csrf_token, Phoenix.Controller.get_csrf_token())} #Generamos el código secreto
   end
 
-  # ---------------------------------------------------------------------------
-  # Render — el HTML de la página de login
-  # ---------------------------------------------------------------------------
+  #Función render lo que el usuario ve en la página.
   @impl true
   def render(assigns) do
     ~H"""

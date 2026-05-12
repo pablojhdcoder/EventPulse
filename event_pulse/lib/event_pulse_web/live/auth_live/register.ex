@@ -1,19 +1,22 @@
 defmodule EventPulseWeb.AuthLive.Register do
   use EventPulseWeb, :live_view
+  @moduledoc """
+  Componente LiveView encargado de mostrar el formulario de registro y manejar la interacción del usuario con
+  dicho formulario. Se encarga de generar el token CSRF para proteger el formulario, mostrar mensajes de error (ej. "email ya registrado") y enviar los datos al controlador AuthController para que procese el registro.
+  """
+  alias EventPulse.Accounts.Auth
 
-  # ---------------------------------------------------------------------------
-  # Mount — inicializa el formulario de registro
-  # ---------------------------------------------------------------------------
+
+  #Funcion mount inicializa el estado del componente LiveView.
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:csrf_token, Phoenix.Controller.get_csrf_token())}
+     #Generamos un código secreto (CSRF TOken) para enviar el formulario
   end
 
-  # ---------------------------------------------------------------------------
-  # Render — HTML del formulario de registro
-  # ---------------------------------------------------------------------------
+  #Función render lo que el usuario ve en la página.
   @impl true
   def render(assigns) do
     ~H"""

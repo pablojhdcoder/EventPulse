@@ -1,27 +1,29 @@
 defmodule EventPulseWeb.AuthController do
   use EventPulseWeb, :controller
 
+  #SE encarga de recibir las peticiones del navegador, hablar ocn la lógia de negocio (AUth.ex)
+  # y decidir que respuesta enviarle al usuario (redireccionar, mostrar mensaje, etc)
   alias EventPulse.Accounts.Auth
 
-  # POST /login - Maneja el login desde el formulario
+  # POST /login: Se activa cuando el usuario pulsa "Iniciar sesión" en el formulario.
   def login(conn, %{"email" => email, "password" => password}) do
     case Auth.login(String.trim(email), String.trim(password)) do
       {:ok, user} ->
-        # Login exitoso - guardar user_id en sesión y redirigir
+        ## Login exitoso, guardamos el UUID del usuario en la cookie de sesión cifrada y redirigimos a la página principal
         conn
         |> put_session(:user_id, user.id)
         |> put_flash(:info, "Sesión iniciada correctamente.")
         |> redirect(to: ~p"/")
 
       {:error, :invalid_credentials} ->
-        # Login fallido - volver al formulario con error
+        ## Login fallido - volver al formulario con error
         conn
         |> put_flash(:error, "Email o contraseña incorrectos.")
         |> redirect(to: ~p"/login")
     end
   end
 
-  # POST /register - Maneja el registro desde el formulario
+  # POST /register: Se activa cuando el usuario pulsa "Registrarse" en el formulario
   def register(conn, %{"username" => username, "email" => email, "password" => password, "password_confirmation" => password_confirmation}) do
     # Validar que las contraseñas coincidan
     if password != password_confirmation do
@@ -29,6 +31,7 @@ defmodule EventPulseWeb.AuthController do
       |> put_flash(:error, "Las contraseñas no coinciden.")
       |> redirect(to: ~p"/register")
     else
+      #Preparamos los datos para enviarlos al AUth.register
       attrs = %{
         "username" => String.trim(username),
         "email" => String.trim(email),
@@ -37,14 +40,14 @@ defmodule EventPulseWeb.AuthController do
 
       case Auth.register(attrs) do
         {:ok, user} ->
-          # Registro exitoso - loguear automáticamente y redirigir
+          # Registro exitoso - loguear automáticamente para que no tenga que hacer login otra vez
           conn
           |> put_session(:user_id, user.id)
           |> put_flash(:info, "Cuenta creada y sesión iniciada correctamente.")
           |> redirect(to: ~p"/")
 
         {:error, changeset} ->
-          # Mostrar primer error de validación
+          # Si el registro falla (ej. email repetido), extraemos el error y lo mostramos
           error_message = get_first_error(changeset)
 
           conn
@@ -54,7 +57,7 @@ defmodule EventPulseWeb.AuthController do
     end
   end
 
-  # Cierra la sesión del usuario y redirige al login
+  # Logout: Limpia la sesión por completo (borra el user_id de la cookie)
   def logout(conn, _params) do
     conn
     |> clear_session()
@@ -62,7 +65,7 @@ defmodule EventPulseWeb.AuthController do
     |> redirect(to: ~p"/login")
   end
 
-  # Función privada para extraer el primer error del changeset
+  # Función auxiliar para convertir errores técnicos de Ecto en frases legibles
   defp get_first_error(changeset) do
     case changeset.errors do
       [] -> "Error en el registro."
