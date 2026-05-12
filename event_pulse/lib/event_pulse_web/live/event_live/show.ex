@@ -113,7 +113,7 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <%!-- Cabecera del evento --%>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
         <div>

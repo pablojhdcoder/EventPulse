@@ -102,7 +102,7 @@ defmodule EventPulseWeb.EventLive.Index do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.25rem;flex-wrap:wrap;gap:0.75rem;">
         <h1 style="font-size:1.5rem;font-weight:700;margin:0;">Todos los eventos</h1>
         <a
