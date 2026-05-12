@@ -1,11 +1,12 @@
 defmodule EventPulse.Votes.VoteAggregatorTest do
-  use EventPulse.DataCase
+  use EventPulse.DataCase                   # Importa herramientas para pruebas que interactúan con la base de datos
   alias EventPulse.Votes.VoteAggregator
   alias EventPulse.Votes.Poll
   alias EventPulse.Repo
 
   # Función auxiliar para crear una poll de prueba
   defp create_test_poll do
+    # Crea un evento padre para asociar la encuesta (poll)
     {:ok, event} = Repo.insert(%EventPulse.Events.Event{
       title: "Evento test",
       description: "Descripción test",
@@ -15,6 +16,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       ends_at: ~U[2026-01-01 12:00:00Z]
     })
 
+    # Crea una encuesta (poll) asociada a ese evento con varias opciones
     {:ok, poll} = Repo.insert(%Poll{
       event_id: event.id,
       question: "¿Pregunta test?",
@@ -30,13 +32,15 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       poll = create_test_poll()
       user_id = 42
 
+      # Simulamos que el mismo usuario vota varias veces con diferentes opciones
       VoteAggregator.cast_vote(poll.id, user_id, "Opción A")
       VoteAggregator.cast_vote(poll.id, user_id, "Opción B")
       VoteAggregator.cast_vote(poll.id, user_id, "Opción C")
 
+      # Pausa para que el GenServer procese los mensajes y realice el flush
       Process.sleep(100)
 
-      # Verificar memoria — solo debe quedar el último voto
+      # Validamos que el estado final en memoria sea el correcto (solo el último voto)
       results = VoteAggregator.get_results(poll.id)
       assert results == %{"Opción C" => 1}
     end
@@ -49,12 +53,12 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       |> Enum.map(fn i ->
         Task.async(fn -> VoteAggregator.cast_vote(poll.id, i, "Opción A") end)
       end)
-      |> Task.await_many()
+      |> Task.await_many()    # Esperamos a que todas las tareas terminen
 
-      Process.sleep(600)
+      Process.sleep(600)      # Esperamos un poco más que el intervalo de flush para asegurarnos de que se hayan persistido
 
       results = VoteAggregator.get_results(poll.id)
-      assert results["Opción A"] == 100
+      assert results["Opción A"] == 100     # Validamos que el conteo de votos sea correcto
     end
   end
 end
