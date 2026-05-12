@@ -21,6 +21,9 @@ defmodule EventPulse.Votes.VoteAggregator do
   En caso de caída del nodo, los votos en `pending` que no se hayan persistido
   se perderían. La memoria (`votes`) es la fuente de verdad en caliente; Postgres
   es la fuente de verdad persistente.
+
+  Si `Repo.insert` falla durante un flush (p. ej. red o DB), los votos afectados
+  permanecen en `pending` y se reintentan en el siguiente ciclo.
   """
 
   alias EventPulse.Repo
@@ -73,8 +76,8 @@ defmodule EventPulse.Votes.VoteAggregator do
 
     state =
       if Application.get_env(:event_pulse, :sync_persist, false) do
-        flush_pending(state.pending)
-        %{state | pending: []}
+        failed = flush_pending(state.pending)
+        %{state | pending: failed}
       else
         state
       end
@@ -91,9 +94,9 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   @impl true
   def handle_info(:flush, state) do
-    flush_pending(state.pending)
+    failed = flush_pending(state.pending)
     schedule_flush()
-    {:noreply, %{state | pending: []}}
+    {:noreply, %{state | pending: failed}}
   end
 
   # --- Funciones privadas ---
@@ -102,19 +105,36 @@ defmodule EventPulse.Votes.VoteAggregator do
     Process.send_after(self(), :flush, @flush_interval)
   end
 
-  defp flush_pending([]), do: :ok
+  defp flush_pending([]), do: []
 
   defp flush_pending(pending) do
-    Enum.each(pending, fn {poll_id, user_id, choice} ->
+    Enum.reduce(pending, [], fn {poll_id, user_id, choice} = vote, failed ->
       :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{poll_id: poll_id})
 
-      %Vote{}
-      |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
-      |> Repo.insert(
-        on_conflict: [set: [choice: choice]],
-        conflict_target: [:user_id, :poll_id]
-      )
+      case insert_vote(poll_id, user_id, choice) do
+        :ok -> failed
+        :error -> [vote | failed]
+      end
     end)
+    |> Enum.reverse()
+  end
+
+ defp insert_vote(poll_id, user_id, choice) do
+    case %Vote{}
+         |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
+         |> Repo.insert(
+           on_conflict: [set: [choice: choice]],
+           conflict_target: [:user_id, :poll_id]
+         ) do
+      {:ok, _} -> :ok
+      {:error, _} -> :error
+    end
+  rescue
+    Ecto.ConstraintError ->
+      :error
+
+    DBConnection.ConnectionError ->
+      :error
   end
 
   defp broadcast_results(poll_id, poll_votes) do

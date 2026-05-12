@@ -1,5 +1,8 @@
 defmodule EventPulse.Votes.VoteAggregatorTest do
   use EventPulse.DataCase
+  import Ecto.Query
+
+  alias EventPulse.Votes.Vote
   alias EventPulse.Votes.VoteAggregator
   alias EventPulse.Votes.Poll
   alias EventPulse.Repo
@@ -61,6 +64,20 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
 
       results = VoteAggregator.get_results(poll.id)
       assert results["Opción A"] == 100
+    end
+
+    test "no descarta pending si Postgres rechaza el insert (poll inexistente)" do
+      fake_poll_id = 9_999_999_999
+
+      VoteAggregator.cast_vote(fake_poll_id, 1, "Opción A")
+      Process.sleep(800)
+
+      assert VoteAggregator.get_results(fake_poll_id) == %{"Opción A" => 1}
+
+      count =
+        Repo.one(from v in Vote, where: v.poll_id == ^fake_poll_id, select: count(v.id))
+
+      assert count == 0
     end
   end
 end
