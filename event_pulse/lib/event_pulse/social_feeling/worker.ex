@@ -8,9 +8,11 @@ defmodule EventPulse.SocialFeeling.Worker do
     3. Persiste el resultado en `social_feeling_results` (idempotente:
        *upsert* por `event_id`).
     4. Difunde por `Phoenix.PubSub` en el tópico `"event:<id>"`.
-    5. Intenta terminar el proceso `EventRoom` del evento si existe
-       bajo `EventPulse.EventRegistry` + `EventPulse.EventSupervisor`
-       (si esa infraestructura aún no está arrancada, es un *no-op*).
+    5. Difunde `{:event_room_closed, event_id}` en `event:<id>` (misma convención
+       que el chat en `Chat.EventRoom`) para que las LiveViews cierren la sala
+       aunque no exista proceso `EventPulse.EventRoom` en el registry.
+    6. Si hay proceso `EventPulse.EventRoom` registrado, lo termina vía
+       `EventPulse.EventRegistry` + `EventPulse.EventSupervisor`.
 
   Expone dos formas de disparo:
 
@@ -213,13 +215,20 @@ defmodule EventPulse.SocialFeeling.Worker do
   # (Persona 6: Registry + DynamicSupervisor). Si aún no está arrancada,
   # no hacemos nada y devolvemos :ok.
   defp cleanup_event_room(event_id) do
-    with true <- registry_alive?(),
-         [{pid, _meta}] <- safe_lookup(event_id),
-         true <- supervisor_alive?() do
-      close_event_room(pid)
-    else
-      _ -> :ok
-    end
+    _ =
+      with true <- registry_alive?(),
+           [{pid, _meta}] <- safe_lookup(event_id),
+           true <- supervisor_alive?() do
+        close_event_room(pid)
+      else
+        _ -> :ok
+      end
+
+    Phoenix.PubSub.broadcast(
+      EventPulse.PubSub,
+      "event:#{event_id}",
+      {:event_room_closed, event_id}
+    )
   end
 
   defp close_event_room(pid) do

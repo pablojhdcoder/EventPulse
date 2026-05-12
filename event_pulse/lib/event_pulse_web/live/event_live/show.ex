@@ -12,6 +12,7 @@ defmodule EventPulseWeb.EventLive.Show do
   - `{:voted, results}` — votos (`VoteAggregator`, tópico `poll:<id>`)
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
   - `{:social_feeling, result}` — resultado consolidado al cerrar
+  - `{:event_room_closed, event_id}` — cierre de sala (worker de Social Feeling; mismo tópico `event:<id>` que el chat)
   """
 
   use EventPulseWeb, :live_view
@@ -373,6 +374,14 @@ defmodule EventPulseWeb.EventLive.Show do
 
   def handle_info({:social_feeling, result}, socket) do
     {:noreply, assign(socket, :social_feeling, result)}
+  end
+
+  def handle_info({:event_room_closed, event_id}, socket) do
+    if socket.assigns.event.id == event_id do
+      {:noreply, put_flash(socket, :info, "El chat de este evento se ha cerrado.")}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:status_changed, updated_event}, socket) do
