@@ -1,15 +1,16 @@
 defmodule EventPulseWeb.EventLive.Show do
-  @moduledoc """
-  Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
+ @moduledoc """
+Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
 
-  Identidad: `EnsureDemoUserId` guarda `demo_user_id` en sesión; LiveView lo usa para votar
-  y como autor del chat (cada navegador con cookies distintas cuenta como usuario distinto).
+Identidad: El usuario autenticado se obtiene de current_user, asignado por
+el plug RequireAuth antes de entrar a esta vista. Se usa su username como
+autor en el chat y su id para registrar los votos.
 
-  Mensajes PubSub:
-  - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
-  - `{:voted, results}` — votos (`VoteAggregator`)
-  - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
-  """
+Mensajes PubSub:
+- `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
+- `{:voted, results}` — votos (`VoteAggregator`)
+- `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
+"""
 
   use EventPulseWeb, :live_view
 
@@ -200,7 +201,7 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def handle_event("send_message", %{"body" => body}, socket) do
     if socket.assigns.event.status == "en_directo" do
-      #Cambiamos el demo_user_id por el current_user.username para mostrar el nombre del usuario en el chat.
+      #Cambiamos
       author = socket.assigns.current_user.username
 
       case EventRoom.send_message(socket.assigns.event_key, %{author: author, body: body}) do
@@ -259,18 +260,6 @@ defmodule EventPulseWeb.EventLive.Show do
   # ---------------------------------------------------------------------------
   # Helpers
   # ---------------------------------------------------------------------------
-
-  #defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id
-
-  #defp normalize_demo_user_id(id) when is_binary(id) do
-  #  case Integer.parse(id) do
-  #    {n, ""} when n > 0 -> n
-  #    _ -> 1
-  #  end
-  #end
-
-  # Plug debería garantizar sesión; fallback defensivo para tests sin plug.
-  #defp normalize_demo_user_id(_), do: :rand.uniform(999_999)
 
   defp message_dom_id(%{id: id}) when is_integer(id), do: "msg-#{id}"
 
