@@ -21,4 +21,10 @@ defmodule EventPulseWeb.FallbackController do
     |> put_view(html: EventPulseWeb.ErrorHTML, json: EventPulseWeb.ErrorJSON)
     |> render(:"404")
   end
+
+  def call(conn, {:error, :invalid_transition}) do
+    conn
+    |> put_status(:unprocessable_entity)
+    |> json(%{errors: %{detail: "Transición de estado no válida para el evento actual."}})
+  end
 end

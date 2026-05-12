@@ -346,6 +346,10 @@ defmodule EventPulseWeb.EventLive.Show do
         {:ok, _} ->
           {:noreply, socket}
 
+        {:error, :invalid_transition} ->
+          {:noreply,
+           put_flash(socket, :error, "No se puede pasar a ese estado desde el estado actual.")}
+
         {:error, _} ->
           {:noreply, put_flash(socket, :error, "No se pudo cambiar el estado.")}
       end

@@ -197,6 +197,30 @@ defmodule EventPulse.EventsTest do
       assert closed_event.status == "finalizado"
       assert %Poll{status: "closed"} = Repo.get!(Poll, poll.id)
     end
+
+    test "update_event_status programado -> en_directo está permitido" do
+      event = event_fixture(%{status: "programado"})
+
+      assert {:ok, %Event{status: "en_directo"} = updated} =
+               Events.update_event_status(event, "en_directo")
+
+      assert updated.id == event.id
+    end
+
+    test "update_event_status rechaza saltos no permitidos" do
+      event = event_fixture(%{status: "programado"})
+      assert {:error, :invalid_transition} = Events.update_event_status(event, "finalizado")
+    end
+
+    test "update_event_status rechaza retrocesos arbitrarios" do
+      event = event_fixture(%{status: "en_directo"})
+      assert {:error, :invalid_transition} = Events.update_event_status(event, "programado")
+    end
+
+    test "update_event_status no permite cambios desde finalizado" do
+      event = event_fixture(%{status: "finalizado"})
+      assert {:error, :invalid_transition} = Events.update_event_status(event, "en_directo")
+    end
   end
 
   defp eventually(fun, attempts \\ 10)

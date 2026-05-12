@@ -10,6 +10,14 @@ defmodule EventPulse.Events do
   alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
   alias EventPulse.Votes.Poll
 
+  # Transiciones permitidas vía `update_event_status/2` (alineado con la UI LiveView).
+  # `close_event/1` sigue pudiendo finalizar desde otros estados si se invoca directamente.
+  @status_transitions %{
+    "programado" => ["en_directo"],
+    "en_directo" => ["finalizado"],
+    "finalizado" => []
+  }
+
   def list_events do
     list_events_filtered(nil, nil)
   end
@@ -99,25 +107,29 @@ defmodule EventPulse.Events do
     end
   end
 
-  def update_event_status(%Event{} = event, "finalizado"), do: close_event(event)
-
   def update_event_status(%Event{} = event, new_status) do
-    event
-    |> Event.changeset(%{status: new_status})
-    |> Repo.update()
-    |> case do
-      {:ok, updated} ->
-        broadcast_status_changed(updated)
+    allowed = Map.get(@status_transitions, event.status, [])
 
-        if updated.status == "finalizado" do
-          _ = ChatBuffer.delete_buffer(Integer.to_string(updated.id))
-          SocialFeelingWorker.process_event(updated.id)
-        end
+    if new_status in allowed do
+      case new_status do
+        "finalizado" ->
+          close_event(event)
 
-        {:ok, updated}
+        _ ->
+          event
+          |> Event.changeset(%{status: new_status})
+          |> Repo.update()
+          |> case do
+            {:ok, updated} ->
+              broadcast_status_changed(updated)
+              {:ok, updated}
 
-      error ->
-        error
+            error ->
+              error
+          end
+      end
+    else
+      {:error, :invalid_transition}
     end
   end
 
