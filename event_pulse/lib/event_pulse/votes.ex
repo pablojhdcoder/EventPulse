@@ -1,8 +1,14 @@
 defmodule EventPulse.Votes do
+  @moduledoc """
+  Contexto principal para la gestión de encuestas y votos.
+  Actúa como orquestador entre el almacenamiento persistente (Repo)
+  y el estado en tiempo real (VoteAggregator).
+  """
   import Ecto.Query
   alias EventPulse.Repo
   alias EventPulse.Votes.{Poll, VoteAggregator}
-  # --- Polls ---
+
+  # --- Gestión de encuestas, Polls ---
 
   @doc "Crea una votación para un evento"
   def create_poll(event_id, question, options) do
@@ -11,12 +17,12 @@ defmodule EventPulse.Votes do
     |> Repo.insert()
   end
 
-  @doc "Obtiene todas las votaciones de un evento"
+  @doc "Obtiene todas las encuestas asociadas a un id de evento"
   def list_polls(event_id) do
     Repo.all(from p in Poll, where: p.event_id == ^event_id)
   end
 
-  @doc "Cierra una votación"
+  @doc "Cambia el estado de una encuesta a 'closed' para impedir nuevos votos"
   def close_poll(poll_id) do
     case Repo.get(Poll, poll_id) do
       nil ->
@@ -29,9 +35,12 @@ defmodule EventPulse.Votes do
     end
   end
 
-  # --- Votos ---
+  # --- Gestión de votos ---
 
-  @doc "Registra un voto en una votación abierta"
+  @doc """
+  Registra un voto validando primero la existencia, el estado y las opciones.
+  Si las reglas de negocio se cumplen, delega el procesamiento al VoteAggregator.
+  """
   def cast_vote(poll_id, user_id, choice) do
     case get_poll_with_event_status(poll_id) do
       nil ->
@@ -53,7 +62,7 @@ defmodule EventPulse.Votes do
     end
   end
 
-  @doc "Obtiene el recuento actual de una votación"
+  @doc "Obtiene el estado actual de los votos para una encuesta específica"
   def get_results(poll_id) do
     VoteAggregator.get_results(poll_id)
   end

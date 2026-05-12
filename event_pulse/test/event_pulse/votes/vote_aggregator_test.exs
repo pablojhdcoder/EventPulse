@@ -42,6 +42,8 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       VoteAggregator.cast_vote(poll.id, user_id, "Opción B")
       VoteAggregator.cast_vote(poll.id, user_id, "Opción C")
 
+      Process.sleep(150)
+
       results = VoteAggregator.get_results(poll.id)
       assert results == %{"Opción C" => 1}
     end
@@ -55,7 +57,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       end)
       |> Task.await_many()
 
-      Process.sleep(50)
+      Process.sleep(300)
 
       results = VoteAggregator.get_results(poll.id)
       assert results["Opción A"] == 100

@@ -61,6 +61,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     new_poll_votes = Map.put(poll_votes, user_id, choice)
     new_votes = Map.put(state.votes, poll_id, new_poll_votes)
 
+    # Misma encuesta + mismo usuario: sustituir voto pendiente anterior.
     new_pending = [
       {poll_id, user_id, choice}
       | Enum.reject(state.pending, fn {p, u, _} -> p == poll_id && u == user_id end)
