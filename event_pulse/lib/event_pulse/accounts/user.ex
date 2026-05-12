@@ -4,7 +4,8 @@ defmodule EventPulse.Accounts.User do
   #changesets: defien las reglas de validación par acad aoperación
   use Ecto.Schema
   import Ecto.Changeset
-  #GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos
+  #GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos. SE genera automáticamente durante
+  #la inserccion del usaurio con Repo.insert()
   @primary_key {:id, :binary_id, autogenerate: true}
   #CUando otros schemas referencien a User, sus claves foráneas también serán UUID
   @foreign_key_type :binary_id
