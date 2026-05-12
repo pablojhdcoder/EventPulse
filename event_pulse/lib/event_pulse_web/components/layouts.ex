@@ -3,7 +3,7 @@ defmodule EventPulseWeb.Layouts do
   Provides layout components.
 
   The `app/1` component is the main app layout used by all LiveViews.
-  LiveView templates must begin with `<Layouts.app flash={@flash}>`.
+  LiveView templates must begin with `<Layouts.app flash={@flash} current_user={@current_user}>`.
   """
 
   use EventPulseWeb, :html

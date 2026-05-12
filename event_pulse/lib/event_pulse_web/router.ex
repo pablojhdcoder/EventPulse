@@ -11,27 +11,21 @@ defmodule EventPulseWeb.Router do
     plug :put_secure_browser_headers
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   pipeline :browser_auth do
     plug EventPulseWeb.Plugs.RequireAuth
+  end
+
+  pipeline :api do
+    plug :accepts, ["json"]
   end
 
   scope "/", EventPulseWeb do
     pipe_through :browser
 
-    # Rutas de autenticación
-    # Muestra el formulario de Login
     live "/login", AuthLive.Login, :index
-    # Procesa el login
     post "/login", AuthController, :login
-    # Muestra el formulario de Registro
     live "/register", AuthLive.Register, :index
-    # Procesa el Registro
     post "/register", AuthController, :register
-    # Cierra sesión
     delete "/logout", AuthController, :logout
   end
 
@@ -45,12 +39,11 @@ defmodule EventPulseWeb.Router do
   scope "/", EventPulseWeb do
     pipe_through [:browser, :browser_auth]
 
-    # Rutas protegidas
     live "/", EventLive.Index, :index
     live "/events", EventLive.Index, :index
     live "/events/new", EventLive.Form, :new
-    live "/events/:id", EventLive.Show, :show
     live "/events/:id/edit", EventLive.Form, :edit
+    live "/events/:id", EventLive.Show, :show
   end
 
   if Application.compile_env(:event_pulse, :dev_routes) do

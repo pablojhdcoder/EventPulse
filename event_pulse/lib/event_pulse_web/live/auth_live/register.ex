@@ -1,102 +1,90 @@
 defmodule EventPulseWeb.AuthLive.Register do
   use EventPulseWeb, :live_view
+
   @moduledoc """
   Componente LiveView encargado de mostrar el formulario de registro y manejar la interacción del usuario con
   dicho formulario. Se encarga de generar el token CSRF para proteger el formulario, mostrar mensajes de error (ej. "email ya registrado") y enviar los datos al controlador AuthController para que procese el registro.
   """
-  alias EventPulse.Accounts.Auth
 
-
-  #Funcion mount inicializa el estado del componente LiveView.
   @impl true
   def mount(_params, _session, socket) do
     {:ok,
      socket
      |> assign(:csrf_token, Phoenix.Controller.get_csrf_token())}
-     #Generamos un código secreto (CSRF TOken) para enviar el formulario
   end
 
-  #Función render lo que el usuario ve en la página.
   @impl true
   def render(assigns) do
     ~H"""
-    <div class="max-w-sm mx-auto my-16 p-8 bg-white rounded-lg shadow-sm">
-      <h1 class="text-2xl font-bold text-center mb-6">Crear cuenta</h1>
+    <main class="ep-auth-shell">
+      <.card class="ep-card--elevated ep-auth-card">
+        <h1 class="ep-auth-title">Crear cuenta</h1>
+        <p class="ep-auth-subtitle">
+          Regístrate para participar en eventos, votar y escribir en salas en directo.
+        </p>
 
-      <%!-- Mensaje de error --%>
-      <div :if={Phoenix.Flash.get(@flash, :error)} class="bg-red-100 text-red-800 px-3 py-2 rounded text-sm mb-4">
-        {Phoenix.Flash.get(@flash, :error)}
-      </div>
+        <.alert :if={Phoenix.Flash.get(@flash, :error)} kind={:error} style="margin-bottom:1rem;">
+          {Phoenix.Flash.get(@flash, :error)}
+        </.alert>
 
-      <form method="post" action={~p"/register"} class="flex flex-col gap-4">
-        <input type="hidden" name="_csrf_token" value={@csrf_token} />
+        <form method="post" action={~p"/register"} class="ep-stack">
+          <input type="hidden" name="_csrf_token" value={@csrf_token} />
 
-        <%!-- Username --%>
-        <div>
-          <label class="block text-sm font-semibold mb-1">Usuario</label>
-          <input
+          <.input
+            id="register-username"
             type="text"
             name="username"
+            label="Usuario"
             placeholder="Tu nombre de usuario"
+            autocomplete="username"
             required
             minlength="3"
-            class="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            maxlength="20"
           />
-        </div>
 
-        <%!-- Email --%>
-        <div>
-          <label class="block text-sm font-semibold mb-1">Email</label>
-          <input
+          <.input
+            id="register-email"
             type="email"
             name="email"
+            label="Email"
             placeholder="tu@email.com"
+            autocomplete="email"
             required
-            class="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
           />
-        </div>
 
-        <%!-- Contraseña --%>
-        <div>
-          <label class="block text-sm font-semibold mb-1">Contraseña</label>
-          <input
+          <.input
+            id="register-password"
             type="password"
             name="password"
-            placeholder="Mínimo 6 caracteres"
+            label="Contraseña"
+            placeholder="Mayúsculas, minúsculas, número y símbolo"
+            autocomplete="new-password"
             required
-            minlength="6"
-            class="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            minlength="8"
           />
-        </div>
 
-        <%!-- Confirmar contraseña --%>
-        <div>
-          <label class="block text-sm font-semibold mb-1">Confirmar contraseña</label>
-          <input
+          <.input
+            id="register-password-confirmation"
             type="password"
             name="password_confirmation"
+            label="Confirmar contraseña"
             placeholder="Repite tu contraseña"
+            autocomplete="new-password"
             required
-            minlength="6"
-            class="w-full px-3 py-2 border border-slate-300 rounded text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500"
+            minlength="8"
           />
-        </div>
 
-        <%!-- Botón de registro --%>
-        <button
-          type="submit"
-          class="bg-indigo-600 hover:bg-indigo-700 text-white border-none rounded py-2 text-sm font-semibold cursor-pointer transition"
-        >
-          Registrarse
-        </button>
-      </form>
+          <.button type="submit" variant="primary" class="ep-button--full">
+            Crear cuenta
+          </.button>
+        </form>
 
-      <%!-- Enlace al login --%>
-      <p class="text-center mt-4 text-sm text-slate-600">
-        ¿Ya tienes cuenta?
-        <a href={~p"/login"} class="text-indigo-600 font-semibold hover:underline">Inicia sesión</a>
-      </p>
-    </div>
+        <p class="ep-auth-footer">
+          ¿Ya tienes cuenta?
+          <a href={~p"/login"}>Inicia sesión</a>
+        </p>
+      </.card>
+    </main>
     """
   end
 end

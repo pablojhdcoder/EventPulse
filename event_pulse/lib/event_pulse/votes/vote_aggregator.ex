@@ -2,8 +2,11 @@ defmodule EventPulse.Votes.VoteAggregator do
   @moduledoc """
   GenServer que gestiona votos en tiempo real.
 
-  Mantiene un mapa en memoria por ámbito de votación y persiste cambios en
-  micro-lotes. Soporta el modelo nuevo por `Poll` y el flujo anterior por evento.
+  Mantiene un mapa en memoria por encuesta (`Poll`) o por evento legado y persiste
+  en micro-lotes. Si `Repo.insert` falla, los votos afectados permanecen en `pending`
+  y se reintentan en el siguiente ciclo.
+
+  En tests (`sync_persist: true`), cada `cast_vote` fuerza un flush inmediato.
   """
 
   use GenServer
@@ -17,8 +20,6 @@ defmodule EventPulse.Votes.VoteAggregator do
   @flush_interval 500
   @name {:global, __MODULE__}
 
-  # --- API pública ---
-
   def start_link(opts) do
     opts = Keyword.put_new(opts, :name, @name)
     GenServer.start_link(__MODULE__, %{votes: %{}, pending: []}, opts)
@@ -27,8 +28,8 @@ defmodule EventPulse.Votes.VoteAggregator do
   @doc """
   Registra o actualiza un voto.
 
-  Si el identificador corresponde a una `Poll`, usa el modelo nuevo por encuesta.
-  Si no existe esa encuesta, mantiene el flujo anterior por evento que usa la LiveView.
+  Si `id` corresponde a una `Poll`, usa el modelo por encuesta; si no existe esa
+  poll, trata `id` como `event_id` del flujo legado.
   """
   def cast_vote(id, user_id, choice) do
     scope = vote_scope(id)
@@ -36,12 +37,10 @@ defmodule EventPulse.Votes.VoteAggregator do
     GenServer.cast(@name, {:cast_vote, scope, user_id, choice})
   end
 
-  @doc "Obtiene los resultados actuales de una encuesta o evento."
+  @doc "Obtiene el recuento actual para una encuesta o un evento (modelo legado)."
   def get_results(id) do
     GenServer.call(@name, {:get_results, vote_scope(id)})
   end
-
-  # --- Callbacks ---
 
   @impl true
   def init(state) do
@@ -68,8 +67,8 @@ defmodule EventPulse.Votes.VoteAggregator do
 
     state =
       if Application.get_env(:event_pulse, :sync_persist, false) do
-        flush_pending(state.pending)
-        %{state | pending: []}
+        failed = flush_pending(state.pending)
+        %{state | pending: failed}
       else
         state
       end
@@ -87,12 +86,10 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   @impl true
   def handle_info(:flush, state) do
-    flush_pending(state.pending)
+    failed = flush_pending(state.pending)
     schedule_flush()
-    {:noreply, %{state | pending: []}}
+    {:noreply, %{state | pending: failed}}
   end
-
-  # --- Funciones privadas ---
 
   defp vote_scope(id) do
     case Repo.get(Poll, id) do
@@ -121,34 +118,48 @@ defmodule EventPulse.Votes.VoteAggregator do
     Process.send_after(self(), :flush, @flush_interval)
   end
 
-  defp flush_pending([]), do: :ok
+  defp flush_pending([]), do: []
 
   defp flush_pending(pending) do
-    Enum.each(pending, fn {scope, user_id, choice} ->
-      persist_vote(scope, user_id, choice)
+    Enum.reduce(pending, [], fn {scope, user_id, choice} = vote, failed ->
+      :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, telemetry_meta(scope))
+
+      case insert_vote(scope, user_id, choice) do
+        :ok -> failed
+        :error -> [vote | failed]
+      end
     end)
+    |> Enum.reverse()
   end
 
-  defp persist_vote({:poll, poll_id}, user_id, choice) do
-    :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{poll_id: poll_id})
-
-    %Vote{}
-    |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
-    |> Repo.insert(
-      on_conflict: [set: [choice: choice]],
-      conflict_target: [:user_id, :poll_id]
-    )
+  defp insert_vote({:poll, poll_id}, user_id, choice) do
+    case %Vote{}
+         |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
+         |> Repo.insert(
+           on_conflict: [set: [choice: choice]],
+           conflict_target: [:user_id, :poll_id]
+         ) do
+      {:ok, _} -> :ok
+      {:error, _} -> :error
+    end
+  rescue
+    Ecto.ConstraintError -> :error
+    DBConnection.ConnectionError -> :error
   end
 
-  defp persist_vote({:event, event_id}, user_id, choice) do
-    :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{event_id: event_id})
-
-    %Vote{}
-    |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
-    |> Repo.insert(
-      on_conflict: [set: [choice: choice]],
-      conflict_target: [:user_id, :event_id]
-    )
+  defp insert_vote({:event, event_id}, user_id, choice) do
+    case %Vote{}
+         |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
+         |> Repo.insert(
+           on_conflict: [set: [choice: choice]],
+           conflict_target: [:user_id, :event_id]
+         ) do
+      {:ok, _} -> :ok
+      {:error, _} -> :error
+    end
+  rescue
+    Ecto.ConstraintError -> :error
+    DBConnection.ConnectionError -> :error
   end
 
   defp broadcast_results({:poll, poll_id}, scope_votes) do

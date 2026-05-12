@@ -68,8 +68,8 @@ defmodule EventPulse.Votes do
   end
 
   @doc """
-  Construye un mapa detallado con todas las encuestas y sus resultados
-  calculados en tiempo real para un evento específico.
+  Obtiene los resultados de todas las votaciones de un evento (mapa por poll con
+  recuento en tiempo real vía `VoteAggregator`).
   """
   def get_event_results(event_id) do
     list_polls(event_id)

@@ -1,19 +1,23 @@
 defmodule EventPulseWeb.EventLive.Show do
   @moduledoc """
-  Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
+  Vista LiveView de un evento: chat, votación en tiempo real (poll + `VoteAggregator`)
+  y panel Social Feeling vía PubSub.
 
-  Identidad: El usuario autenticado se obtiene de current_user, asignado por
-  el plug RequireAuth antes de entrar a esta vista. Se usa su username como
-  autor en el chat y su id para registrar los votos.
+  El usuario autenticado (`EventPulse.Accounts.Auth`) define el autor en el chat
+  (`current_user.username`). Los votos usan el entero `demo_user_id` de sesión
+  (`EnsureDemoUserId`) con `Votes.cast_vote/3` porque `Vote.user_id` es numérico.
 
   Mensajes PubSub:
   - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
   - `{:voted, results}` — votos (`VoteAggregator`, tópico `poll:<id>`)
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
+  - `{:social_feeling, result}` — resultado consolidado al cerrar
+  - `{:event_room_closed, event_id}` — cierre de sala (worker de Social Feeling; mismo tópico `event:<id>` que el chat)
   """
 
   use EventPulseWeb, :live_view
 
+  alias EventPulse.Accounts.Auth
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
   alias EventPulse.SocialFeeling
@@ -32,55 +36,72 @@ defmodule EventPulseWeb.EventLive.Show do
   # ---------------------------------------------------------------------------
 
   @impl true
-  def mount(%{"id" => id_str}, _session, socket) do
-    case Integer.parse(id_str) do
-      {event_id, ""} ->
-        case Events.get_event(event_id) do
-          {:ok, event} ->
-            event_key = Integer.to_string(event_id)
-            poll = primary_open_poll(event_id)
+  def mount(%{"id" => id_str}, session, socket) do
+    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
+    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
 
-            current_user = socket.assigns.current_user
+    if is_nil(current_user) do
+      {:ok,
+       push_navigate(socket, to: ~p"/login")
+       |> put_flash(:error, "Debes iniciar sesión para acceder.")}
+    else
+      case Integer.parse(id_str) do
+        {event_id, ""} ->
+          case Events.get_event(event_id) do
+            {:ok, event} ->
+              event_key = Integer.to_string(event_id)
+              poll = primary_open_poll(event_id)
 
-            vote_results =
-              if poll, do: VoteAggregator.get_results(poll.id), else: %{}
+              demo_user_id =
+                normalize_demo_user_id(
+                  Map.get(session, "demo_user_id") || Map.get(session, :demo_user_id)
+                )
 
-            socket =
-              socket
-              |> assign(:event, event)
-              |> assign(:event_key, event_key)
-              |> assign(:current_user, current_user)
-              |> assign(:valid_transitions, @valid_transitions)
-              |> assign(:poll, poll)
-              |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
-              |> assign(:vote_results, vote_results)
-              |> assign(:draft, "")
-              |> assign(:max_body_length, @max_body_length)
-              |> stream(:messages, [], dom_id: &message_dom_id/1)
+              vote_results =
+                if poll, do: VoteAggregator.get_results(poll.id), else: %{}
 
-            socket =
-              if connected?(socket) do
-                Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
-                Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
+              socket =
+                socket
+                |> assign(:event, event)
+                |> assign(:event_key, event_key)
+                |> assign(:poll, poll)
+                |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
+                |> assign(:current_user, current_user)
+                |> assign(:demo_user_id, demo_user_id)
+                |> assign(:vote_results, vote_results)
+                |> assign(:draft, "")
+                |> assign(:max_body_length, @max_body_length)
+                |> assign(:valid_transitions, @valid_transitions)
+                |> stream(:messages, [], dom_id: &message_dom_id/1)
 
-                if poll do
-                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+              socket =
+                if connected?(socket) do
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
+
+                  if poll do
+                    Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+                  end
+
+                  history = EventRoom.recent_messages(event_key)
+                  stream(socket, :messages, history, reset: true)
+                else
+                  socket
                 end
 
-                history = EventRoom.recent_messages(event_key)
-                stream(socket, :messages, history, reset: true)
-              else
-                socket
-              end
+              {:ok, socket}
 
-            {:ok, socket}
+            :error ->
+              {:ok,
+               push_navigate(socket, to: ~p"/")
+               |> put_flash(:error, "Evento no encontrado.")}
+          end
 
-          :error ->
-            {:ok, push_navigate(socket, to: ~p"/") |> put_flash(:error, "Evento no encontrado.")}
-        end
-
-      _ ->
-        {:ok, push_navigate(socket, to: ~p"/") |> put_flash(:error, "ID de evento inválido.")}
+        _ ->
+          {:ok,
+           push_navigate(socket, to: ~p"/")
+           |> put_flash(:error, "ID de evento inválido.")}
+      end
     end
   end
 
@@ -91,7 +112,7 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def render(assigns) do
     ~H"""
-    <Layouts.app flash={@flash}>
+    <Layouts.app flash={@flash} current_user={@current_user}>
       <%!-- Cabecera del evento --%>
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:1rem;margin-bottom:1.5rem;">
         <div>
@@ -104,22 +125,28 @@ defmodule EventPulseWeb.EventLive.Show do
           </p>
           <p :if={@event.description} style="margin-top:0.5rem;">{@event.description}</p>
         </div>
-        <span style={status_style(@event.status)}>{@event.status}</span>
-      </div>
-
-      <div :if={admin_user?(@current_user)} style="margin:-0.5rem 0 1.5rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
-        <span style="font-size:0.875rem;font-weight:600;color:#475569;">Cambiar estado:</span>
-        <button
-          :for={next_status <- Map.get(@valid_transitions, @event.status, [])}
-          phx-click="change_status"
-          phx-value-status={next_status}
-          style="background:#16a34a;color:white;padding:0.4rem 0.75rem;border-radius:0.375rem;border:none;cursor:pointer;"
-        >
-          → {next_status}
-        </button>
-        <a href={~p"/events/#{@event.id}/edit"} style="color:#d97706;font-size:0.875rem;">
-          Editar evento
-        </a>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.75rem;">
+          <span style={status_style(@event.status)}>{@event.status}</span>
+          <div :if={admin?(@current_user)} style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end;">
+              <button
+                :for={next_status <- Map.get(@valid_transitions, @event.status, [])}
+                type="button"
+                phx-click="change_status"
+                phx-value-status={next_status}
+                style="background:#16a34a;color:#fff;border:none;border-radius:0.375rem;padding:0.35rem 0.75rem;font-size:0.8rem;cursor:pointer;"
+              >
+                → {next_status}
+              </button>
+            </div>
+            <a
+              href={~p"/events/#{@event.id}/edit"}
+              style="display:inline-block;background:#d97706;color:#fff;border-radius:0.375rem;padding:0.35rem 0.75rem;font-size:0.8rem;font-weight:600;text-decoration:none;"
+            >
+              Editar evento
+            </a>
+          </div>
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
@@ -259,7 +286,6 @@ defmodule EventPulseWeb.EventLive.Show do
   @impl true
   def handle_event("send_message", %{"body" => body}, socket) do
     if socket.assigns.event.status == "en_directo" do
-      # Cambiamos
       author = socket.assigns.current_user.username
 
       case EventRoom.send_message(socket.assigns.event_key, %{author: author, body: body}) do
@@ -282,13 +308,17 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   def handle_event("change_status", %{"status" => new_status}, socket) do
-    if admin_user?(socket.assigns.current_user) do
+    if admin?(socket.assigns.current_user) do
       case Events.update_event_status(socket.assigns.event, new_status) do
         {:ok, updated} ->
           {:noreply, assign(socket, :event, updated)}
 
-        {:error, _changeset} ->
-          {:noreply, put_flash(socket, :error, "Transición inválida")}
+        {:error, :invalid_transition} ->
+          {:noreply,
+           put_flash(socket, :error, "No se puede pasar a ese estado desde el estado actual.")}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "No se pudo cambiar el estado.")}
       end
     else
       {:noreply, put_flash(socket, :error, "No autorizado")}
@@ -307,7 +337,7 @@ defmodule EventPulseWeb.EventLive.Show do
         {:noreply, put_flash(socket, :error, "No hay votación activa.")}
 
       true ->
-        user_id = socket.assigns.current_user.id
+        user_id = socket.assigns.demo_user_id
 
         case Votes.cast_vote(poll.id, user_id, choice) do
           :ok ->
@@ -343,6 +373,14 @@ defmodule EventPulseWeb.EventLive.Show do
 
   def handle_info({:social_feeling, result}, socket) do
     {:noreply, assign(socket, :social_feeling, result)}
+  end
+
+  def handle_info({:event_room_closed, event_id}, socket) do
+    if socket.assigns.event.id == event_id do
+      {:noreply, put_flash(socket, :info, "El chat de este evento se ha cerrado.")}
+    else
+      {:noreply, socket}
+    end
   end
 
   def handle_info({:status_changed, updated_event}, socket) do
@@ -394,6 +432,17 @@ defmodule EventPulseWeb.EventLive.Show do
     |> List.first()
   end
 
+  defp normalize_demo_user_id(id) when is_integer(id) and id > 0, do: id
+
+  defp normalize_demo_user_id(id) when is_binary(id) do
+    case Integer.parse(id) do
+      {n, ""} when n > 0 -> n
+      _ -> 1
+    end
+  end
+
+  defp normalize_demo_user_id(_), do: :rand.uniform(999_999)
+
   defp message_dom_id(%{id: id}) when is_integer(id), do: "msg-#{id}"
 
   defp message_dom_id(%{inserted_at: ts, author: author, body: body}) do
@@ -421,6 +470,7 @@ defmodule EventPulseWeb.EventLive.Show do
     do:
       "background:#f1f5f9;color:#475569;border-radius:9999px;padding:0.25rem 0.75rem;font-size:0.8rem;font-weight:600;white-space:nowrap;"
 
-  defp admin_user?(%{role: "admin"}), do: true
-  defp admin_user?(_), do: false
+  defp admin?(nil), do: false
+  defp admin?(%{role: "admin"}), do: true
+  defp admin?(_), do: false
 end

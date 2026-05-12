@@ -8,8 +8,6 @@ defmodule EventPulse.EventRoom do
 
   use GenServer
 
-  @topic_prefix "event:"
-
   def start_link(event_id) when is_integer(event_id) do
     GenServer.start_link(__MODULE__, event_id, name: via_tuple(event_id))
   end
@@ -30,12 +28,7 @@ defmodule EventPulse.EventRoom do
   def init(event_id), do: {:ok, %{event_id: event_id}}
 
   @impl true
-  def handle_call(:close, _from, %{event_id: event_id} = state) do
-    Phoenix.PubSub.broadcast(EventPulse.PubSub, @topic_prefix <> to_string(event_id), {
-      :event_room_closed,
-      event_id
-    })
-
+  def handle_call(:close, _from, state) do
     {:stop, :normal, :ok, state}
   end
 

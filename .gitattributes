@@ -1,1 +1,5 @@
 *.sh text eol=lf
+
+# Scripts Unix del release (sin extensión .sh): evitar CRLF en checkout Windows.
+event_pulse/rel/overlays/bin/migrate text eol=lf
+event_pulse/rel/overlays/bin/server text eol=lf

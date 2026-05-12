@@ -74,7 +74,8 @@ defmodule EventPulseWeb.CoreComponents do
   @doc """
   Renders a button.
   """
-  attr :type, :string, default: nil
+  attr :type, :string, default: "button"
+  attr :variant, :string, default: "primary", values: ["primary", "secondary", "outline"]
   attr :class, :string, default: nil
   attr :rest, :global, include: ~w(disabled form name value)
   slot :inner_block, required: true
@@ -84,8 +85,8 @@ defmodule EventPulseWeb.CoreComponents do
     <button
       type={@type}
       class={[
-        "phx-submit-loading:opacity-75 rounded-lg bg-indigo-600 hover:bg-indigo-700 py-2 px-4",
-        "text-sm font-semibold leading-6 text-white active:text-white/80",
+        "ep-button",
+        button_variant_class(@variant),
         @class
       ]}
       {@rest}
@@ -96,12 +97,43 @@ defmodule EventPulseWeb.CoreComponents do
   end
 
   @doc """
+  Renders a reusable card container.
+  """
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def card(assigns) do
+    ~H"""
+    <section class={["ep-card", @class]} {@rest}>
+      {render_slot(@inner_block)}
+    </section>
+    """
+  end
+
+  @doc """
+  Renders an inline alert for form-level feedback.
+  """
+  attr :kind, :atom, default: :info, values: [:info, :error]
+  attr :class, :string, default: nil
+  attr :rest, :global
+  slot :inner_block, required: true
+
+  def alert(assigns) do
+    ~H"""
+    <div class={["ep-alert", alert_kind_class(@kind), @class]} role="alert" {@rest}>
+      {render_slot(@inner_block)}
+    </div>
+    """
+  end
+
+  @doc """
   Renders an input with label and error messages.
   """
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
-  attr :value, :any
+  attr :value, :any, default: nil
   attr :type, :string, default: "text"
   attr :field, Phoenix.HTML.FormField, doc: "a form field struct, e.g. @form[:email]"
   attr :errors, :list, default: []
@@ -128,16 +160,14 @@ defmodule EventPulseWeb.CoreComponents do
 
   def input(%{type: "textarea"} = assigns) do
     ~H"""
-    <div>
-      <label :if={@label} for={@id}>{@label}</label>
+    <div class="ep-field">
+      <label :if={@label} class="ep-label" for={@id}>{@label}</label>
       <textarea
         id={@id}
         name={@name}
         class={[
-          "mt-2 block w-full rounded-lg text-zinc-900 focus:ring-0 sm:text-sm sm:leading-6 min-h-[6rem]",
-          "phx-no-feedback:border-zinc-300 phx-no-feedback:focus:border-zinc-400",
-          @errors == [] && "border-zinc-300 focus:border-zinc-400",
-          @errors != [] && "border-rose-400 focus:border-rose-400",
+          "ep-input",
+          @errors != [] && "ep-input--error",
           @class
         ]}
         {@rest}
@@ -149,18 +179,16 @@ defmodule EventPulseWeb.CoreComponents do
 
   def input(assigns) do
     ~H"""
-    <div>
-      <label :if={@label} for={@id}>{@label}</label>
+    <div class="ep-field">
+      <label :if={@label} class="ep-label" for={@id}>{@label}</label>
       <input
         type={@type}
         name={@name}
         id={@id}
         value={Phoenix.HTML.Form.normalize_value(@type, @value)}
         class={[
-          "mt-2 block w-full rounded-lg text-zinc-900 focus:ring-0 sm:text-sm sm:leading-6",
-          "phx-no-feedback:border-zinc-300 phx-no-feedback:focus:border-zinc-400",
-          @errors == [] && "border-zinc-300 focus:border-zinc-400",
-          @errors != [] && "border-rose-400 focus:border-rose-400",
+          "ep-input",
+          @errors != [] && "ep-input--error",
           @class
         ]}
         {@rest}
@@ -184,11 +212,18 @@ defmodule EventPulseWeb.CoreComponents do
 
   defp error(assigns) do
     ~H"""
-    <p class="mt-3 flex gap-3 text-sm leading-6 text-rose-600 phx-no-feedback:hidden">
+    <p class="ep-field-error phx-no-feedback:hidden">
       {render_slot(@inner_block)}
     </p>
     """
   end
+
+  defp button_variant_class("primary"), do: "ep-button--primary"
+  defp button_variant_class("secondary"), do: "ep-button--secondary"
+  defp button_variant_class("outline"), do: "ep-button--outline"
+
+  defp alert_kind_class(:info), do: "ep-alert--info"
+  defp alert_kind_class(:error), do: "ep-alert--error"
 
   defp hide(js, selector) do
     JS.hide(js,

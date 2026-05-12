@@ -1,73 +1,41 @@
-<Layouts.app flash={@flash}>
-<div style="max-width:600px; margin:2rem auto; padding:1rem;">
-  <a href={~p"/events"} style="color:#2563eb;">← Volver a eventos</a>
+<Layouts.app flash={@flash} current_user={@current_user}>
+  <div style="max-width:640px;margin:0 auto;">
+    <a href={~p"/events"} style="display:inline-flex;margin-bottom:1rem;font-weight:700;">
+      ← Volver a eventos
+    </a>
 
-  <h1 style="font-size:1.5rem; font-weight:bold; margin-top:1rem;">
-    <%= if @event.id, do: "Editar Evento", else: "Nuevo Evento" %>
-  </h1>
+    <.card class="ep-card--elevated">
+      <h1 style="font-size:1.65rem;font-weight:800;letter-spacing:-0.03em;margin:0 0 0.35rem;">
+        <%= if @event.id, do: "Editar evento", else: "Nuevo evento" %>
+      </h1>
+      <p style="color:var(--color-text-muted);margin:0 0 1.5rem;">
+        Completa los datos principales del evento para que aparezca en el listado.
+      </p>
 
-  <.form for={@form} phx-change="validate" phx-submit="save"
-    style="margin-top:1rem;">
+      <.form for={@form} phx-change="validate" phx-submit="save" class="ep-stack">
+        <.input field={@form[:title]} type="text" label="Título *" required />
 
-    <div style="margin-bottom:1rem;">
-      <label style="font-weight:600; display:block; margin-bottom:0.25rem;">
-        Título *
-      </label>
-      <input type="text" name="event[title]" value={@form[:title].value}
-        style="width:100%; border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem;" />
-      <%= if @form[:title].errors != [] do %>
-        <p style="color:#dc2626; font-size:0.875rem;">Campo obligatorio</p>
-      <% end %>
-    </div>
+        <.input field={@form[:description]} type="textarea" label="Descripción" />
 
-    <div style="margin-bottom:1rem;">
-      <label style="font-weight:600; display:block; margin-bottom:0.25rem;">
-        Descripción
-      </label>
-      <textarea name="event[description]"
-        style="width:100%; border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem; height:100px;"><%= @form[:description].value %></textarea>
-    </div>
+        <div class="ep-field">
+          <label class="ep-label" for="event-category">Categoría *</label>
+          <select id="event-category" name="event[category]" class="ep-input" required>
+            <option value="">Selecciona una categoría</option>
+            <option value="deportes" selected={@form[:category].value == "deportes"}>Deportes</option>
+            <option value="musica" selected={@form[:category].value == "musica"}>Música</option>
+            <option value="politica" selected={@form[:category].value == "politica"}>Política</option>
+            <option value="cultura" selected={@form[:category].value == "cultura"}>Cultura</option>
+          </select>
+        </div>
 
-    <div style="margin-bottom:1rem;">
-      <label style="font-weight:600; display:block; margin-bottom:0.25rem;">
-        Categoría *
-      </label>
-      <select name="event[category]"
-        style="width:100%; border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem;">
-        <option value="">Selecciona una categoría</option>
-        <option value="deportes" selected={@form[:category].value == "deportes"}>Deportes</option>
-        <option value="musica" selected={@form[:category].value == "musica"}>Música</option>
-        <option value="politica" selected={@form[:category].value == "politica"}>Política</option>
-        <option value="cultura" selected={@form[:category].value == "cultura"}>Cultura</option>
-      </select>
-    </div>
+        <.input field={@form[:starts_at]} type="datetime-local" label="Fecha de inicio *" required />
+        <.input field={@form[:ends_at]} type="datetime-local" label="Fecha de fin" />
 
-    <div style="margin-bottom:1rem;">
-      <label style="font-weight:600; display:block; margin-bottom:0.25rem;">
-        Fecha de inicio *
-      </label>
-      <input type="datetime-local" name="event[starts_at]" value={@form[:starts_at].value}
-        style="width:100%; border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem;" />
-    </div>
-
-    <div style="margin-bottom:1.5rem;">
-      <label style="font-weight:600; display:block; margin-bottom:0.25rem;">
-        Fecha de fin
-      </label>
-      <input type="datetime-local" name="event[ends_at]" value={@form[:ends_at].value}
-        style="width:100%; border:1px solid #d1d5db; border-radius:0.375rem; padding:0.5rem;" />
-    </div>
-
-    <div style="display:flex; gap:1rem;">
-      <button type="submit"
-        style="background:#2563eb; color:white; padding:0.5rem 1.5rem; border-radius:0.375rem; border:none; cursor:pointer;">
-        Guardar
-      </button>
-      <a href={~p"/events"}
-        style="color:#6b7280; padding:0.5rem 1rem; text-decoration:none;">
-        Cancelar
-      </a>
-    </div>
-  </.form>
-</div>
+        <div class="ep-form-actions">
+          <.button type="submit" variant="primary">Guardar</.button>
+          <a href={~p"/events"} class="ep-button ep-button--outline">Cancelar</a>
+        </div>
+      </.form>
+    </.card>
+  </div>
 </Layouts.app>

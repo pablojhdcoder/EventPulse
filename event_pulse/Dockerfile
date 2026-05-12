@@ -15,7 +15,12 @@ COPY lib lib
 COPY priv priv
 COPY rel rel
 
-RUN find rel -type f \( -name "*.eex" -o -name "*.sh" \) -exec sed -i 's/\r$//' {} \;
+# Scripts del overlay (p. ej. migrate, server) no tienen sufijo .sh; en Windows suelen
+# entrar con CRLF y el shebang falla en Linux con "not found" (exit 127).
+RUN find rel -type f \( -name "*.eex" -o -name "*.sh" \) -exec sed -i 's/\r$//' {} \; \
+  && if [ -d rel/overlays/bin ]; then \
+       find rel/overlays/bin -type f ! -name "*.bat" -exec sed -i 's/\r$//' {} \; ; \
+     fi
 
 ARG RELEASE_HOSTNAME=localhost
 ENV HOSTNAME=${RELEASE_HOSTNAME}

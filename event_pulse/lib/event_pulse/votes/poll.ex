@@ -1,5 +1,4 @@
 defmodule EventPulse.Votes.Poll do
-  alias ElixirLS.LanguageServer.Providers.Definition
   use Ecto.Schema
   import Ecto.Changeset
 
