@@ -57,9 +57,10 @@ Al finalizar el desarrollo el repositorio debe contener:
   - Diseño de la arquitectura + ADRs
 
   - Instrucciones para compilar, desplegar y  utilizar la aplicación.
-  
-  - Documentación de los tipos de pruebas realizadas, los escenarios
-    cubiertos, y los escenarios no cubiertos.
+
+  - Documentación de infraestructura OTP, clúster y observabilidad: `doc/infraestructura_cluster.md`
+
+  - Nota: para ejecutar `mix test` en local debes tener PostgreSQL disponible en `localhost:5432` o definir `DATABASE_URL`. Alternativamente, usa `mix test` que automáticamente levanta PostgreSQL en Docker en el puerto 5433.
 
   - El material audiovisual empleado en la presentación.
 

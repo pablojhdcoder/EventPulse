@@ -1,22 +1,24 @@
 defmodule EventPulse.Votes.VoteAggregator do
+  @moduledoc """
+  Gestiona el estado de las votaciones en memoria y persiste los cambios
+  de forma periódica para no saturar la base de datos.
+  """
+
   use GenServer
 
   import Ecto.Query
-
-  @moduledoc """
-  Gestiona el estado de las votaciones en memoria para alta disponibilidad
-  y persiste en base de datos de forma asíncrona (batching).
-  """
 
   alias EventPulse.Repo
   alias EventPulse.Votes.Poll
   alias EventPulse.Votes.Vote
 
   @flush_interval 500
+  @name {:global, __MODULE__}
 
-  # --- API Pública ---
+  # --- API pública ---
 
   def start_link(opts) do
+    opts = Keyword.put_new(opts, :name, @name)
     GenServer.start_link(__MODULE__, %{votes: %{}, pending: []}, opts)
   end
 
@@ -27,12 +29,14 @@ defmodule EventPulse.Votes.VoteAggregator do
   Si no existe esa encuesta, mantiene el flujo anterior por evento que usa la LiveView.
   """
   def cast_vote(id, user_id, choice) do
-    GenServer.cast(__MODULE__, {:cast_vote, vote_scope(id), user_id, choice})
+    scope = vote_scope(id)
+    :telemetry.execute([:event_pulse, :vote, :cast], %{count: 1}, telemetry_meta(scope))
+    GenServer.cast(@name, {:cast_vote, scope, user_id, choice})
   end
 
   @doc "Obtiene los resultados actuales de una encuesta o evento."
   def get_results(id) do
-    GenServer.call(__MODULE__, {:get_results, vote_scope(id)})
+    GenServer.call(@name, {:get_results, vote_scope(id)})
   end
 
   # --- Callbacks ---
@@ -76,7 +80,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     {:noreply, %{state | pending: []}}
   end
 
-  # --- Funciones Privadas ---
+  # --- Funciones privadas ---
 
   defp vote_scope(id) do
     case Repo.get(Poll, id) do
@@ -114,6 +118,8 @@ defmodule EventPulse.Votes.VoteAggregator do
   end
 
   defp persist_vote({:poll, poll_id}, user_id, choice) do
+    :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{poll_id: poll_id})
+
     %Vote{}
     |> Vote.changeset(%{poll_id: poll_id, user_id: user_id, choice: choice})
     |> Repo.insert(
@@ -123,6 +129,8 @@ defmodule EventPulse.Votes.VoteAggregator do
   end
 
   defp persist_vote({:event, event_id}, user_id, choice) do
+    :telemetry.execute([:event_pulse, :vote, :persist], %{count: 1}, %{event_id: event_id})
+
     %Vote{}
     |> Vote.changeset(%{event_id: event_id, user_id: user_id, choice: choice})
     |> Repo.insert(
@@ -148,4 +156,7 @@ defmodule EventPulse.Votes.VoteAggregator do
     results = Enum.frequencies(Map.values(scope_votes))
     Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:voted, results})
   end
+
+  defp telemetry_meta({:poll, poll_id}), do: %{poll_id: poll_id}
+  defp telemetry_meta({:event, event_id}), do: %{event_id: event_id}
 end

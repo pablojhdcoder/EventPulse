@@ -36,9 +36,14 @@ config :event_pulse, EventPulseWeb.Endpoint,
 config :event_pulse, EventPulse.Mailer, adapter: Swoosh.Adapters.Local
 
 # Configure Elixir's Logger
-config :logger, :default_formatter,
-  format: "$time $metadata[$level] $message\n",
-  metadata: [:request_id]
+config :logger,
+  backends: [:console],
+  level: :debug
+
+config :logger, :console,
+  format:
+    "{\"timestamp\":\"$time\",\"level\":\"$level\",\"message\":\"$message\",\"metadata\":\"$metadata\"}\n",
+  metadata: [:request_id, :module, :function]
 
 # Use Jason for JSON parsing in Phoenix
 config :phoenix, :json_library, Jason

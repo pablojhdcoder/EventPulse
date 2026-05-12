@@ -4,14 +4,17 @@ defmodule EventPulseWeb.Router do
   pipeline :browser do
     plug :accepts, ["html"]
     plug :fetch_session
-    plug EventPulseWeb.Plugs.EnsureDemoUserId # Asegura que cada visitante tenga un user_id único en la sesión, incluso si no se ha registrado
+    plug EventPulseWeb.Plugs.EnsureDemoUserId
     plug :fetch_live_flash
     plug :put_root_layout, html: {EventPulseWeb.Layouts, :root}
     plug :protect_from_forgery
     plug :put_secure_browser_headers
   end
 
-  # El pipeline :browser_auth incluye el plug RequireAuth que verifica si el usuario está autenticado antes de permitir el acceso a ciertas rutas.
+  pipeline :api do
+    plug :accepts, ["json"]
+  end
+
   pipeline :browser_auth do
     plug EventPulseWeb.Plugs.RequireAuth
   end
@@ -20,11 +23,23 @@ defmodule EventPulseWeb.Router do
     pipe_through :browser
 
     # Rutas de autenticación
-    live "/login", AuthLive.Login, :index #Muestra el formulario de Login
-    post "/login", AuthController, :login #Procesa el login
-    live "/register", AuthLive.Register, :index #Muestra el formulario de Registro
-    post "/register", AuthController, :register #Procesa el Registro
-    delete "/logout", AuthController, :logout #Cierra sesión
+    # Muestra el formulario de Login
+    live "/login", AuthLive.Login, :index
+    # Procesa el login
+    post "/login", AuthController, :login
+    # Muestra el formulario de Registro
+    live "/register", AuthLive.Register, :index
+    # Procesa el Registro
+    post "/register", AuthController, :register
+    # Cierra sesión
+    delete "/logout", AuthController, :logout
+  end
+
+  scope "/api", EventPulseWeb do
+    pipe_through :api
+
+    resources "/events", EventController, except: [:new, :edit]
+    put "/events/:id/status", EventController, :update_status
   end
 
   scope "/", EventPulseWeb do
@@ -32,7 +47,10 @@ defmodule EventPulseWeb.Router do
 
     # Rutas protegidas
     live "/", EventLive.Index, :index
+    live "/events", EventLive.Index, :index
+    live "/events/new", EventLive.Form, :new
     live "/events/:id", EventLive.Show, :show
+    live "/events/:id/edit", EventLive.Form, :edit
   end
 
   if Application.compile_env(:event_pulse, :dev_routes) do

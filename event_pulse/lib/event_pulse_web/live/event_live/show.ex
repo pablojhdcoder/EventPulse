@@ -1,16 +1,16 @@
 defmodule EventPulseWeb.EventLive.Show do
- @moduledoc """
-Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
+  @moduledoc """
+  Vista LiveView de un evento: chat y recuento de votos en tiempo real vía PubSub.
 
-Identidad: El usuario autenticado se obtiene de current_user, asignado por
-el plug RequireAuth antes de entrar a esta vista. Se usa su username como
-autor en el chat y su id para registrar los votos.
+  Identidad: El usuario autenticado se obtiene de current_user, asignado por
+  el plug RequireAuth antes de entrar a esta vista. Se usa su username como
+  autor en el chat y su id para registrar los votos.
 
-Mensajes PubSub:
-- `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
-- `{:voted, results}` — votos (`VoteAggregator`)
-- `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
-"""
+  Mensajes PubSub:
+  - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
+  - `{:voted, results}` — votos (`VoteAggregator`)
+  - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
+  """
 
   use EventPulseWeb, :live_view
 
@@ -19,28 +19,32 @@ Mensajes PubSub:
   alias EventPulse.Votes.VoteAggregator
 
   @max_body_length Application.compile_env(:event_pulse, :chat_max_body_length, 500)
+  @valid_transitions %{
+    "programado" => ["en_directo"],
+    "en_directo" => ["finalizado"],
+    "finalizado" => []
+  }
 
   # ---------------------------------------------------------------------------
   # Mount
   # ---------------------------------------------------------------------------
 
   @impl true
-  def mount(%{"id" => id_str}, session, socket) do
+  def mount(%{"id" => id_str}, _session, socket) do
     case Integer.parse(id_str) do
       {event_id, ""} ->
         case Events.get_event(event_id) do
           {:ok, event} ->
             event_key = Integer.to_string(event_id)
 
-            #demo_user_id = normalize_demo_user_id(session["demo_user_id"])
             current_user = socket.assigns.current_user
 
             socket =
               socket
               |> assign(:event, event)
               |> assign(:event_key, event_key)
-              #|> assign(:demo_user_id, demo_user_id)
               |> assign(:current_user, current_user)
+              |> assign(:valid_transitions, @valid_transitions)
               |> assign(:vote_results, VoteAggregator.get_results(event_id))
               |> assign(:draft, "")
               |> assign(:max_body_length, @max_body_length)
@@ -89,6 +93,21 @@ Mensajes PubSub:
           <p :if={@event.description} style="margin-top:0.5rem;">{@event.description}</p>
         </div>
         <span style={status_style(@event.status)}>{@event.status}</span>
+      </div>
+
+      <div :if={admin_user?(@current_user)} style="margin:-0.5rem 0 1.5rem;display:flex;align-items:center;gap:0.75rem;flex-wrap:wrap;">
+        <span style="font-size:0.875rem;font-weight:600;color:#475569;">Cambiar estado:</span>
+        <button
+          :for={next_status <- Map.get(@valid_transitions, @event.status, [])}
+          phx-click="change_status"
+          phx-value-status={next_status}
+          style="background:#16a34a;color:white;padding:0.4rem 0.75rem;border-radius:0.375rem;border:none;cursor:pointer;"
+        >
+          → {next_status}
+        </button>
+        <a href={~p"/events/#{@event.id}/edit"} style="color:#d97706;font-size:0.875rem;">
+          Editar evento
+        </a>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
@@ -201,7 +220,7 @@ Mensajes PubSub:
   @impl true
   def handle_event("send_message", %{"body" => body}, socket) do
     if socket.assigns.event.status == "en_directo" do
-      #Cambiamos
+      # Cambiamos
       author = socket.assigns.current_user.username
 
       case EventRoom.send_message(socket.assigns.event_key, %{author: author, body: body}) do
@@ -223,10 +242,24 @@ Mensajes PubSub:
     {:noreply, assign(socket, :draft, body)}
   end
 
+  def handle_event("change_status", %{"status" => new_status}, socket) do
+    if admin_user?(socket.assigns.current_user) do
+      case Events.update_event_status(socket.assigns.event, new_status) do
+        {:ok, updated} ->
+          {:noreply, assign(socket, :event, updated)}
+
+        {:error, _changeset} ->
+          {:noreply, put_flash(socket, :error, "Transición inválida")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "No autorizado")}
+    end
+  end
+
   def handle_event("cast_vote", %{"choice" => choice}, socket) do
     if socket.assigns.event.status == "en_directo" do
       event_id = socket.assigns.event.id
-      #user_id = socket.assigns.demo_user_id
+      # user_id = socket.assigns.demo_user_id
       user_id = socket.assigns.current_user.id
       VoteAggregator.cast_vote(event_id, user_id, choice)
       {:noreply, socket}
@@ -287,4 +320,7 @@ Mensajes PubSub:
   defp status_style(_),
     do:
       "background:#f1f5f9;color:#475569;border-radius:9999px;padding:0.25rem 0.75rem;font-size:0.8rem;font-weight:600;white-space:nowrap;"
+
+  defp admin_user?(%{role: "admin"}), do: true
+  defp admin_user?(_), do: false
 end
