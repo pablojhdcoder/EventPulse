@@ -13,7 +13,7 @@ defmodule EventPulse.Accounts.Auth do
   def register(attrs) do
     #ejemplo de attrs: username: "eva", email: "evarendo@mail.com", password: "HoLa!145"
     %User{}
-    |> User.changeset(attrs) #aplcamos las validacions del esquema user a los atributos
+    |> User.changeset(attrs) #aplicamos las validacions del esquema user a los atributos
     |> Repo.insert()
   end
 
