@@ -35,6 +35,27 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ "en_directo"
       assert html =~ "programado"
     end
+
+    test "filtra por categoría con query string", %{conn: conn} do
+      event_fixture(%{category: "deportes", title: "Partido visible"})
+      event_fixture(%{category: "musica", title: "Concierto oculto"})
+
+      {:ok, _lv, html} = live(conn, ~p"/events?category=deportes")
+
+      assert html =~ "Partido visible"
+      refute html =~ "Concierto oculto"
+    end
+  end
+
+  describe "EventLive.Index — admin" do
+    setup %{conn: conn} do
+      {:ok, conn: register_and_log_in_user(conn, role: "admin")}
+    end
+
+    test "muestra enlace nuevo evento", %{conn: conn} do
+      {:ok, _lv, html} = live(conn, ~p"/events")
+      assert html =~ "Nuevo evento"
+    end
   end
 
   # ---------------------------------------------------------------------------
@@ -64,6 +85,24 @@ defmodule EventPulseWeb.EventLiveTest do
 
       {:ok, _lv, html_prog} = live(conn, ~p"/events/#{prog_event.id}")
       refute html_prog =~ "Escribe un mensaje"
+    end
+
+    test "participante no ve transiciones de estado de admin", %{conn: conn} do
+      event = event_fixture(%{status: "programado", title: "Público"})
+      {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
+      refute html =~ "→ en_directo"
+    end
+  end
+
+  describe "EventLive.Show — admin" do
+    setup %{conn: conn} do
+      {:ok, conn: register_and_log_in_user(conn, role: "admin")}
+    end
+
+    test "muestra transición programado → en_directo", %{conn: conn} do
+      event = event_fixture(%{status: "programado", title: "Admin evento"})
+      {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
+      assert html =~ "→ en_directo"
     end
   end
 
@@ -229,6 +268,38 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ "positivo"
       assert html =~ "0.5"
       assert html =~ "2"
+    end
+  end
+
+  describe "Event — transiciones de estado (changeset)" do
+    test "programado acepta en_directo" do
+      changeset =
+        EventPulse.Events.Event.changeset(
+          %EventPulse.Events.Event{},
+          %{title: "T", category: "c", status: "en_directo", starts_at: ~U[2026-06-01 10:00:00Z]}
+        )
+
+      assert changeset.valid?
+    end
+
+    test "en_directo acepta finalizado" do
+      changeset =
+        EventPulse.Events.Event.changeset(
+          %EventPulse.Events.Event{},
+          %{title: "T", category: "c", status: "finalizado", starts_at: ~U[2026-06-01 10:00:00Z]}
+        )
+
+      assert changeset.valid?
+    end
+
+    test "estado inválido es rechazado" do
+      changeset =
+        EventPulse.Events.Event.changeset(
+          %EventPulse.Events.Event{},
+          %{title: "T", category: "c", status: "invalido", starts_at: ~U[2026-06-01 10:00:00Z]}
+        )
+
+      refute changeset.valid?
     end
   end
 

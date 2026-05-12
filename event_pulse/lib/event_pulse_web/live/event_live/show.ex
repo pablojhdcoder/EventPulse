@@ -25,6 +25,12 @@ defmodule EventPulseWeb.EventLive.Show do
 
   @max_body_length Application.compile_env(:event_pulse, :chat_max_body_length, 500)
 
+  @valid_transitions %{
+    "programado" => ["en_directo"],
+    "en_directo" => ["finalizado"],
+    "finalizado" => []
+  }
+
   # ---------------------------------------------------------------------------
   # Mount
   # ---------------------------------------------------------------------------
@@ -65,6 +71,7 @@ defmodule EventPulseWeb.EventLive.Show do
                 |> assign(:vote_results, vote_results)
                 |> assign(:draft, "")
                 |> assign(:max_body_length, @max_body_length)
+                |> assign(:valid_transitions, @valid_transitions)
                 |> stream(:messages, [], dom_id: &message_dom_id/1)
 
               socket =
@@ -118,7 +125,28 @@ defmodule EventPulseWeb.EventLive.Show do
           </p>
           <p :if={@event.description} style="margin-top:0.5rem;">{@event.description}</p>
         </div>
-        <span style={status_style(@event.status)}>{@event.status}</span>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:0.75rem;">
+          <span style={status_style(@event.status)}>{@event.status}</span>
+          <div :if={admin?(@current_user)} style="display:flex;flex-direction:column;align-items:flex-end;gap:0.5rem;">
+            <div style="display:flex;flex-wrap:wrap;gap:0.5rem;justify-content:flex-end;">
+              <button
+                :for={next_status <- Map.get(@valid_transitions, @event.status, [])}
+                type="button"
+                phx-click="change_status"
+                phx-value-status={next_status}
+                style="background:#16a34a;color:#fff;border:none;border-radius:0.375rem;padding:0.35rem 0.75rem;font-size:0.8rem;cursor:pointer;"
+              >
+                → {next_status}
+              </button>
+            </div>
+            <a
+              href={~p"/events/#{@event.id}/edit"}
+              style="display:inline-block;background:#d97706;color:#fff;border-radius:0.375rem;padding:0.35rem 0.75rem;font-size:0.8rem;font-weight:600;text-decoration:none;"
+            >
+              Editar evento
+            </a>
+          </div>
+        </div>
       </div>
 
       <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
@@ -312,6 +340,20 @@ defmodule EventPulseWeb.EventLive.Show do
     end
   end
 
+  def handle_event("change_status", %{"status" => new_status}, socket) do
+    if admin?(socket.assigns.current_user) do
+      case Events.update_event_status(socket.assigns.event, new_status) do
+        {:ok, _} ->
+          {:noreply, socket}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "No se pudo cambiar el estado.")}
+      end
+    else
+      {:noreply, put_flash(socket, :error, "No autorizado")}
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # handle_info (PubSub)
   # ---------------------------------------------------------------------------
@@ -415,4 +457,8 @@ defmodule EventPulseWeb.EventLive.Show do
   defp status_style(_),
     do:
       "background:#f1f5f9;color:#475569;border-radius:9999px;padding:0.25rem 0.75rem;font-size:0.8rem;font-weight:600;white-space:nowrap;"
+
+  defp admin?(nil), do: false
+  defp admin?(%{role: "admin"}), do: true
+  defp admin?(_), do: false
 end

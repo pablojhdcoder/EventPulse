@@ -138,5 +138,11 @@ defmodule EventPulse.Events do
       "events:#{event.id}",
       {:status_changed, event}
     )
+
+    Phoenix.PubSub.broadcast(
+      EventPulse.PubSub,
+      "events:updates",
+      {:status_changed, event}
+    )
   end
 end

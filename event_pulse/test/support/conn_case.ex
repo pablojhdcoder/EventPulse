@@ -42,15 +42,19 @@ defmodule EventPulseWeb.ConnCase do
   @doc """
   Registra un usuario y rellena la sesión de prueba con `user_id` y `demo_user_id`.
   Útil para rutas protegidas con `RequireAuth` y LiveViews que necesitan ambos.
+
+  Opciones: `role: "admin" | "participant"` (por defecto participant).
   """
-  def register_and_log_in_user(conn) do
+  def register_and_log_in_user(conn, opts \\ []) do
+    role = Keyword.get(opts, :role, "participant")
     suffix = System.unique_integer([:positive])
 
     {:ok, user} =
       Auth.register(%{
         "username" => "t#{suffix}",
         "email" => "e#{suffix}@example.com",
-        "password" => "TestP1!xx"
+        "password" => "TestP1!xx",
+        "role" => role
       })
 
     conn
