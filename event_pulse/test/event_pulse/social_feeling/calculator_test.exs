@@ -8,7 +8,7 @@ defmodule EventPulse.SocialFeeling.CalculatorTest do
       r = Calculator.calculate(%{})
       assert r.score == 0.0
       assert r.label == :sin_datos
-      assert r.total_votes == 0
+      assert r.numeric_vote_count == 0
       assert r.breakdown == %{}
     end
   end
@@ -18,33 +18,33 @@ defmodule EventPulse.SocialFeeling.CalculatorTest do
       r = Calculator.calculate(%{"muy_positivo" => 10})
       assert r.score == 1.0
       assert r.label == :muy_positivo
-      assert r.total_votes == 10
+      assert r.numeric_vote_count == 10
     end
 
     test "todo muy_negativo -> score -1.0 y etiqueta :muy_negativo" do
       r = Calculator.calculate(%{"muy_negativo" => 5})
       assert r.score == -1.0
       assert r.label == :muy_negativo
-      assert r.total_votes == 5
+      assert r.numeric_vote_count == 5
     end
 
     test "equilibrado entre positivo y negativo -> :neutral" do
       r = Calculator.calculate(%{"positivo" => 3, "negativo" => 3})
       assert r.score == 0.0
       assert r.label == :neutral
-      assert r.total_votes == 6
+      assert r.numeric_vote_count == 6
     end
 
     test "más positivos que negativos -> etiqueta positiva" do
       r = Calculator.calculate(%{"positivo" => 8, "negativo" => 2})
       assert r.score > 0.2
       assert r.label in [:positivo, :muy_positivo]
-      assert r.total_votes == 10
+      assert r.numeric_vote_count == 10
     end
 
     test "choices desconocidos cuentan en el total pero como neutros" do
       r = Calculator.calculate(%{"rara_avis" => 100})
-      assert r.total_votes == 100
+      assert r.numeric_vote_count == 100
       assert r.score == 0.0
       assert r.label == :neutral
     end
@@ -69,7 +69,42 @@ defmodule EventPulse.SocialFeeling.CalculatorTest do
       r = Calculator.calculate(%{"sí" => 8, "no" => 2}, weights: %{})
       assert r.score == 0.0
       assert r.label == :neutral
-      assert r.total_votes == 10
+      assert r.numeric_vote_count == 10
+    end
+  end
+
+  describe "normalized_mean_scale_poll/2" do
+    test "media en rango normalizado [0,1]" do
+      poll = %{options: ["1", "3", "5"]}
+      counts = %{"1" => 1, "5" => 1}
+      assert {:ok, mean} = Calculator.normalized_mean_scale_poll(poll, counts)
+      assert_in_delta mean, 0.5, 0.0001
+    end
+
+    test "sin votos -> :skip" do
+      assert :skip == Calculator.normalized_mean_scale_poll(%{options: ["1", "2"]}, %{})
+    end
+  end
+
+  describe "social_feeling_from_scale_poll_means/2" do
+    test "media simple de medias por encuesta" do
+      r = Calculator.social_feeling_from_scale_poll_means([0.0, 1.0], 10)
+      assert r.score == 0.5
+      assert r.label == :neutral
+      assert r.numeric_vote_count == 10
+    end
+
+    test "etiquetas en [0,1] sin transformación a [-1,1]" do
+      assert Calculator.social_feeling_from_scale_poll_means([1.0], 1).label == :muy_positivo
+      assert Calculator.social_feeling_from_scale_poll_means([0.8], 1).label == :muy_positivo
+      assert Calculator.social_feeling_from_scale_poll_means([0.6], 1).label == :positivo
+      assert Calculator.social_feeling_from_scale_poll_means([0.4], 1).label == :neutral
+      assert Calculator.social_feeling_from_scale_poll_means([0.2], 1).label == :negativo
+      assert Calculator.social_feeling_from_scale_poll_means([0.19], 1).label == :muy_negativo
+    end
+
+    test "lista vacía -> nil" do
+      assert Calculator.social_feeling_from_scale_poll_means([], 0) == nil
     end
   end
 end

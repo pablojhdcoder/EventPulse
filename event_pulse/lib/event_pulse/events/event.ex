@@ -25,4 +25,18 @@ defmodule EventPulse.Events.Event do
   end
 
   def valid_statuses, do: @valid_statuses
+
+  @doc """
+  Opciones del desplegable de categoría en formularios.
+  El valor es el que se persiste en `events.category`.
+  """
+  def category_select_options do
+    [
+      {"Deportes", "deportes"},
+      {"Música", "musica"},
+      {"Política", "politica"},
+      {"Cultura", "cultura"},
+      {"Tecnología", "tecnologia"}
+    ]
+  end
 end

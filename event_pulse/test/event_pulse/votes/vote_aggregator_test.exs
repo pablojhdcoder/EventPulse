@@ -27,7 +27,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       Repo.insert(%Poll{
         event_id: event.id,
         question: "¿Pregunta test?",
-        options: ["Opción A", "Opción B", "Opción C"],
+        options: ["1", "2", "3"],
         status: "open"
       })
 
@@ -41,13 +41,13 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       poll = create_test_poll()
       user_id = 42
 
-      VoteAggregator.cast_vote(poll.id, user_id, "Opción A")
-      VoteAggregator.cast_vote(poll.id, user_id, "Opción B")
-      VoteAggregator.cast_vote(poll.id, user_id, "Opción C")
+      VoteAggregator.cast_vote(poll.id, user_id, "1")
+      VoteAggregator.cast_vote(poll.id, user_id, "2")
+      VoteAggregator.cast_vote(poll.id, user_id, "3")
       _ = :sys.get_state(aggregator)
 
       results = VoteAggregator.get_results(poll.id)
-      assert results == %{"Opción C" => 1}
+      assert results == %{"3" => 1}
     end
 
     test "concurrencia: soporta múltiples votos de distintos usuarios a la vez", %{
@@ -57,14 +57,14 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
 
       1..100
       |> Enum.map(fn i ->
-        Task.async(fn -> VoteAggregator.cast_vote(poll.id, i, "Opción A") end)
+        Task.async(fn -> VoteAggregator.cast_vote(poll.id, i, "1") end)
       end)
       |> Task.await_many()
 
       _ = :sys.get_state(aggregator)
 
       results = VoteAggregator.get_results(poll.id)
-      assert results["Opción A"] == 100
+      assert results["1"] == 100
     end
   end
 end

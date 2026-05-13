@@ -2,16 +2,20 @@ defmodule EventPulse.SocialFeeling.Worker do
   @moduledoc """
   `GenServer` que procesa el cierre de un evento:
 
-    1. Obtiene los votos (prioriza la memoria del `VoteAggregator`,
-       con *fallback* a la base de datos).
-    2. Calcula el Social Feeling (`Calculator`).
-    3. Persiste el resultado en `social_feeling_results` (idempotente:
+    1. Lista las votaciones numéricas del evento y, para cada una, obtiene
+       recuentos `{opción => n}` (prioriza `VoteAggregator`, *fallback* DB).
+    2. Normaliza las respuestas al intervalo \\[0.0, 1.0\\] y agrega el
+       Social Feeling como **media simple de esas medias** (misma ponderación
+       por votación).
+    3. Si no hay votaciones numéricas o ninguna aporta votos,
+       persiste el resultado con `score` y `label` en `nil` (sin indicador).
+    4. Persiste el resultado en `social_feeling_results` (idempotente:
        *upsert* por `event_id`).
-    4. Difunde por `Phoenix.PubSub` en el tópico `"event:<id>"`.
-    5. Difunde `{:event_room_closed, event_id}` en `event:<id>` (misma convención
+    5. Difunde por `Phoenix.PubSub` en el tópico `"event:<id>"`.
+    6. Difunde `{:event_room_closed, event_id}` en `event:<id>` (misma convención
        que el chat en `Chat.EventRoom`) para que las LiveViews cierren la sala
        aunque no exista proceso `EventPulse.EventRoom` en el registry.
-    6. Si hay proceso `EventPulse.EventRoom` registrado, lo termina vía
+    7. Si hay proceso `EventPulse.EventRoom` registrado, lo termina vía
        `EventPulse.EventRegistry` + `EventPulse.EventSupervisor`.
 
   Expone dos formas de disparo:
@@ -121,10 +125,40 @@ defmodule EventPulse.SocialFeeling.Worker do
   end
 
   defp do_process(event_id) do
-    vote_counts = gather_votes(event_id)
-    feeling = Calculator.calculate(vote_counts)
+    polls =
+      from(p in Poll,
+        where: p.event_id == ^event_id
+      )
+      |> Repo.all()
+      |> Enum.filter(&numeric_poll?/1)
 
-    case persist_result(event_id, feeling) do
+    persist_outcome =
+      if polls == [] do
+        persist_no_indicator(event_id)
+      else
+        {means, total_scale_votes} =
+          Enum.reduce(polls, {[], 0}, fn poll, {acc_means, acc_votes} ->
+            counts = vote_counts_for_poll(poll.id)
+            n = counts |> Map.values() |> Enum.sum()
+
+            case Calculator.normalized_mean_scale_poll(poll, counts) do
+              :skip ->
+                {acc_means, acc_votes}
+
+              {:ok, mean} ->
+                {[mean | acc_means], acc_votes + n}
+            end
+          end)
+
+        means = Enum.reverse(means)
+
+        case Calculator.social_feeling_from_scale_poll_means(means, total_scale_votes) do
+          nil -> persist_no_indicator(event_id)
+          feeling -> persist_result(event_id, feeling)
+        end
+      end
+
+    case persist_outcome do
       {:ok, result} ->
         broadcast(event_id, result)
         cleanup_event_room(event_id)
@@ -140,40 +174,39 @@ defmodule EventPulse.SocialFeeling.Worker do
     end
   end
 
-  defp gather_votes(event_id) do
-    mem = mem_vote_counts_for_event(event_id)
+  defp vote_counts_for_poll(poll_id) do
+    mem =
+      try do
+        VoteAggregator.get_results(poll_id)
+      catch
+        :exit, _ -> %{}
+      end
 
     if map_size(mem) > 0 do
       mem
     else
-      votes_from_db(event_id)
+      votes_from_db_for_poll(poll_id)
     end
   end
 
-  defp mem_vote_counts_for_event(event_id) do
-    poll_ids =
-      from(p in Poll, where: p.event_id == ^event_id, select: p.id)
-      |> Repo.all()
-
-    Enum.reduce(poll_ids, %{}, fn poll_id, acc ->
-      try do
-        VoteAggregator.get_results(poll_id)
-        |> merge_vote_count_maps(acc)
-      catch
-        :exit, _ -> acc
-      end
-    end)
+  defp numeric_poll?(%Poll{options: options}) when is_list(options) do
+    Enum.all?(options, &integer_string?/1)
   end
 
-  defp merge_vote_count_maps(%{} = results, acc) do
-    Map.merge(acc, results, fn _choice, c1, c2 -> c1 + c2 end)
+  defp numeric_poll?(_poll), do: false
+
+  defp integer_string?(value) when is_binary(value) do
+    case Integer.parse(String.trim(value)) do
+      {_n, ""} -> true
+      _ -> false
+    end
   end
 
-  defp votes_from_db(event_id) do
+  defp integer_string?(_value), do: false
+
+  defp votes_from_db_for_poll(poll_id) do
     from(v in Vote,
-      join: p in Poll,
-      on: v.poll_id == p.id,
-      where: p.event_id == ^event_id,
+      where: v.poll_id == ^poll_id,
       group_by: v.choice,
       select: {v.choice, count(v.id)}
     )
@@ -181,12 +214,30 @@ defmodule EventPulse.SocialFeeling.Worker do
     |> Enum.into(%{})
   end
 
+  defp persist_no_indicator(event_id) do
+    attrs = %{
+      event_id: event_id,
+      score: nil,
+      label: nil,
+      numeric_vote_count: 0,
+      breakdown: %{},
+      computed_at: DateTime.utc_now() |> DateTime.truncate(:second)
+    }
+
+    %Result{}
+    |> Result.changeset(attrs)
+    |> Repo.insert(
+      on_conflict: {:replace_all_except, [:id, :inserted_at]},
+      conflict_target: [:event_id]
+    )
+  end
+
   defp persist_result(event_id, feeling) do
     attrs = %{
       event_id: event_id,
       score: feeling.score,
       label: Atom.to_string(feeling.label),
-      total_votes: feeling.total_votes,
+      numeric_vote_count: feeling.numeric_vote_count,
       breakdown: stringify_breakdown(feeling.breakdown),
       computed_at: DateTime.utc_now() |> DateTime.truncate(:second)
     }

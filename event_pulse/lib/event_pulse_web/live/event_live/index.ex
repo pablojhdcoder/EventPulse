@@ -128,6 +128,7 @@ defmodule EventPulseWeb.EventLive.Index do
           <option value="musica" selected={@category_filter == "musica"}>Música</option>
           <option value="politica" selected={@category_filter == "politica"}>Política</option>
           <option value="cultura" selected={@category_filter == "cultura"}>Cultura</option>
+          <option value="tecnologia" selected={@category_filter == "tecnologia"}>Tecnología</option>
         </select>
       </form>
 

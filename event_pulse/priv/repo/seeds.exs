@@ -1,21 +1,30 @@
 # Seeds para demo y desarrollo local.
 # Se ejecutan con: mix ecto.setup
+#
+# Deja exactamente 3 eventos de ejemplo (cualquier otro evento en BD se elimina).
 
 import Ecto.Query
 
 alias EventPulse.Repo
 alias EventPulse.Events
+alias EventPulse.Events.Event
 alias EventPulse.Accounts.User
 alias EventPulse.Votes
 alias EventPulse.Votes.Poll
 alias EventPulse.Votes.Vote
+alias EventPulse.SocialFeeling.Result
 
 now = DateTime.utc_now() |> DateTime.truncate(:second)
+
+# Social feeling no tiene FK a events en migraciones: borrar antes que events.
+# Polls tienen ON DELETE CASCADE desde events; votes desde polls.
+Repo.delete_all(Result)
+Repo.delete_all(Event)
 
 # Debe cumplir las reglas de User.changeset (longitud y complejidad).
 password = "Admin!1demo"
 
-directo_options = ["SÍ", "NO", "Abstención"]
+directo_options = ["1", "2", "3"]
 
 create_user_once = fn attrs ->
   case Repo.get_by(User, email: attrs.email) do
@@ -26,17 +35,6 @@ create_user_once = fn attrs ->
 
     user ->
       user
-  end
-end
-
-create_event_once = fn attrs ->
-  case EventPulse.Events.Event |> Repo.get_by(title: attrs.title) do
-    nil ->
-      {:ok, event} = Events.create_event(attrs)
-      event
-
-    event ->
-      event
   end
 end
 
@@ -78,9 +76,9 @@ _participant =
     role: "participant"
   })
 
-event_programado =
-  create_event_once.(%{
-    title: "Presentacion AS",
+{:ok, event_programado} =
+  Events.create_event(%{
+    title: "test evento programado",
     description: "Evento de ejemplo en estado programado.",
     category: "tecnologia",
     status: "programado",
@@ -88,21 +86,21 @@ event_programado =
     ends_at: DateTime.add(now, 7 * 24 * 3600 + 7200, :second)
   })
 
-event_directo =
-  create_event_once.(%{
-    title: "Streaming en vivo",
-    description: "Sala de chat activa para pruebas con WebSocket.",
+{:ok, event_directo} =
+  Events.create_event(%{
+    title: "test evento en directo",
+    description: "evento live",
     category: "musica",
     status: "en_directo",
     starts_at: DateTime.add(now, -3600, :second),
     ends_at: DateTime.add(now, 3600, :second)
   })
 
-event_finalizado =
-  create_event_once.(%{
-    title: "Concierto",
-    description: "Evento cerrado con historial y votación de ejemplo.",
-    category: "musica",
+{:ok, event_finalizado} =
+  Events.create_event(%{
+    title: "Test evento finalizado",
+    description: "Evento ya finalizado",
+    category: "deportes",
     status: "finalizado",
     starts_at: DateTime.add(now, -14 * 24 * 3600, :second),
     ends_at: DateTime.add(now, -14 * 24 * 3600 + 7200, :second)
@@ -116,31 +114,33 @@ poll_directo =
 poll_finalizado =
   ensure_poll.(
     event_finalizado,
-    "Valoración del concierto",
-    ["muy_positivo", "positivo", "neutral", "negativo", "muy_negativo"]
+    "Valoración del evento",
+    ["1", "2", "3", "4"]
   )
 
 insert_vote_once.(%{
   poll_id: poll_directo.id,
   user_id: 1,
-  choice: "SÍ"
+  choice: "1"
 })
 
 insert_vote_once.(%{
   poll_id: poll_directo.id,
   user_id: 2,
-  choice: "NO"
+  choice: "2"
 })
 
 insert_vote_once.(%{
   poll_id: poll_finalizado.id,
   user_id: 1,
-  choice: "muy_positivo"
+  choice: "4"
 })
 
 IO.puts("""
-Seeds cargados:
+Seeds cargados (solo 3 eventos):
   Usuarios (UUID): demo_admin / demo_participant — contraseña: #{password}
-  Eventos: id=#{event_programado.id} programado, id=#{event_directo.id} en_directo, id=#{event_finalizado.id} finalizado
-  Polls y votos de ejemplo (por poll_id) alineados con la UI (SÍ / NO / Abstención).
+  — "#{event_programado.title}" (programado) id=#{event_programado.id}
+  — "#{event_directo.title}" (en_directo) id=#{event_directo.id}
+  — "#{event_finalizado.title}" (finalizado) id=#{event_finalizado.id}
+  Polls y votos de ejemplo alineados con la UI numérica.
 """)

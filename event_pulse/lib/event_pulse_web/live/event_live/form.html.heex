@@ -13,23 +13,153 @@
       </p>
 
       <.form for={@form} phx-change="validate" phx-submit="save" class="ep-stack">
-        <.input field={@form[:title]} type="text" label="Título *" required />
+        <.input
+          field={@form[:title]}
+          type="text"
+          label="Título *"
+          required
+          value={form_field_value(@form[:title], @event, :title)}
+        />
 
-        <.input field={@form[:description]} type="textarea" label="Descripción" />
+        <.input
+          field={@form[:description]}
+          type="textarea"
+          label="Descripción"
+          value={form_field_value(@form[:description], @event, :description)}
+        />
 
         <div class="ep-field">
           <label class="ep-label" for="event-category">Categoría *</label>
           <select id="event-category" name="event[category]" class="ep-input" required>
             <option value="">Selecciona una categoría</option>
-            <option value="deportes" selected={@form[:category].value == "deportes"}>Deportes</option>
-            <option value="musica" selected={@form[:category].value == "musica"}>Música</option>
-            <option value="politica" selected={@form[:category].value == "politica"}>Política</option>
-            <option value="cultura" selected={@form[:category].value == "cultura"}>Cultura</option>
+            <option
+              :for={{label, value} <- @category_options}
+              value={value}
+              selected={form_field_value(@form[:category], @event, :category) == value}
+            >{label}</option>
           </select>
         </div>
 
-        <.input field={@form[:starts_at]} type="datetime-local" label="Fecha de inicio *" required />
-        <.input field={@form[:ends_at]} type="datetime-local" label="Fecha de fin" />
+        <.input
+          field={@form[:starts_at]}
+          type="datetime-local"
+          label="Fecha de inicio *"
+          required
+          value={form_field_value(@form[:starts_at], @event, :starts_at)}
+        />
+        <.input
+          field={@form[:ends_at]}
+          type="datetime-local"
+          label="Fecha de fin"
+          value={form_field_value(@form[:ends_at], @event, :ends_at)}
+        />
+
+        <section
+          :if={@mode == :edit && @event.status == "programado" && @event.id}
+          style="border:1px solid var(--color-border);border-radius:0.875rem;padding:1rem;background:#f8fafc;"
+        >
+          <h2 style="font-size:1rem;font-weight:800;margin:0 0 0.35rem;">Votaciones del evento</h2>
+          <p style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
+            Mientras el evento está programado puedes editar las votaciones numéricas o añadir nuevas. Las opiniones en texto van al chat.
+          </p>
+
+          <p :if={@editable_poll_forms == []} style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
+            Aún no hay votaciones. Puedes crear la primera abajo.
+          </p>
+
+          <div class="ep-stack" style="gap:1.25rem;">
+            <section
+              :for={epoll <- @editable_poll_forms}
+              id={"edit-poll-#{epoll.id}"}
+              style="border:1px dashed var(--color-border);border-radius:0.75rem;padding:0.85rem;background:#fff;"
+            >
+              <p style="font-size:0.75rem;font-weight:700;color:var(--color-text-muted);margin:0 0 0.5rem;text-transform:uppercase;">
+                Votación existente (id {epoll.id})
+              </p>
+              <div class="ep-field">
+                <label class="ep-label" for={"poll-existing-q-#{epoll.id}"}>Pregunta</label>
+                <input
+                  id={"poll-existing-q-#{epoll.id}"}
+                  name={"poll_existing[#{epoll.id}][question]"}
+                  type="text"
+                  value={epoll.question}
+                  class="ep-input"
+                  placeholder="Ej. Valora el evento del 1 al 5"
+                />
+              </div>
+              <div class="ep-field">
+                <label class="ep-label" for={"poll-existing-oc-#{epoll.id}"}>Número de opciones</label>
+                <select
+                  id={"poll-existing-oc-#{epoll.id}"}
+                  name={"poll_existing[#{epoll.id}][option_count]"}
+                  class="ep-input"
+                >
+                  <option value="2" selected={epoll.option_count == 2}>2 opciones</option>
+                  <option value="3" selected={epoll.option_count == 3}>3 opciones</option>
+                  <option value="4" selected={epoll.option_count == 4}>4 opciones</option>
+                </select>
+              </div>
+              <div class="ep-stack" style="gap:0.75rem;">
+                <div
+                  :for={{option, index} <- Enum.with_index(epoll.options)}
+                  class="ep-field"
+                >
+                  <label class="ep-label" for={"poll-existing-opt-#{epoll.id}-#{index}"}>Opción {index + 1}</label>
+                  <input
+                    id={"poll-existing-opt-#{epoll.id}-#{index}"}
+                    name={"poll_existing[#{epoll.id}][options][#{index}]"}
+                    type="number"
+                    value={option}
+                    class="ep-input"
+                    placeholder={"Número #{index + 1}"}
+                  />
+                </div>
+              </div>
+            </section>
+          </div>
+
+          <section style="margin-top:1.25rem;border-top:1px solid var(--color-border);padding-top:1rem;">
+            <h3 style="font-size:0.95rem;font-weight:800;margin:0 0 0.35rem;">Añadir otra votación (opcional)</h3>
+            <p style="color:var(--color-text-muted);font-size:0.85rem;margin:0 0 1rem;">
+              Déjalo vacío si no quieres crear más encuestas al guardar.
+            </p>
+            <div class="ep-field">
+              <label class="ep-label" for="poll-new-q">Pregunta</label>
+              <input
+                id="poll-new-q"
+                name="poll[question]"
+                type="text"
+                value={@poll_form.question}
+                class="ep-input"
+                placeholder="Ej. ¿Del 1 al 10 qué tal el ritmo?"
+              />
+            </div>
+            <div class="ep-field">
+              <label class="ep-label" for="poll-new-oc">Número de opciones</label>
+              <select id="poll-new-oc" name="poll[option_count]" class="ep-input">
+                <option value="2" selected={@poll_form.option_count == 2}>2 opciones</option>
+                <option value="3" selected={@poll_form.option_count == 3}>3 opciones</option>
+                <option value="4" selected={@poll_form.option_count == 4}>4 opciones</option>
+              </select>
+            </div>
+            <div class="ep-stack" style="gap:0.75rem;">
+              <div
+                :for={{option, index} <- Enum.with_index(@poll_form.options)}
+                class="ep-field"
+              >
+                <label class="ep-label" for={"poll-new-opt-#{index}"}>Opción {index + 1}</label>
+                <input
+                  id={"poll-new-opt-#{index}"}
+                  name={"poll[options][#{index}]"}
+                  type="number"
+                  value={option}
+                  class="ep-input"
+                  placeholder={"Número #{index + 1}"}
+                />
+              </div>
+            </div>
+          </section>
+        </section>
 
         <section
           :if={@mode == :new}
@@ -37,7 +167,7 @@
         >
           <h2 style="font-size:1rem;font-weight:800;margin:0 0 0.35rem;">Votación inicial</h2>
           <p style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
-            Opcional: crea una primera votación asociada al evento.
+            Opcional: crea una primera votación numérica asociada al evento. Las respuestas con texto deben ir al chat.
           </p>
 
           <div class="ep-field">
@@ -48,7 +178,7 @@
               type="text"
               value={@poll_form.question}
               class="ep-input"
-              placeholder="Ej. ¿Quién ganará?"
+              placeholder="Ej. Valora el evento del 1 al 5"
             />
           </div>
 
@@ -74,10 +204,10 @@
               <input
                 id={"poll-option-#{index}"}
                 name={"poll[options][#{index}]"}
-                type="text"
+                type="number"
                 value={option}
                 class="ep-input"
-                placeholder={"Texto de la opción #{index + 1}"}
+                placeholder={"Número de la opción #{index + 1}"}
               />
             </div>
           </div>
