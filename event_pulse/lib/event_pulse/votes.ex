@@ -11,9 +11,16 @@ defmodule EventPulse.Votes do
   # --- Gestión de encuestas, Polls ---
 
   @doc "Crea una votación para un evento"
-  def create_poll(event_id, question, options) do
+  def create_poll(event_id, question, options, opts \\ []) do
+    _opts = opts
+
     %Poll{}
-    |> Poll.changeset(%{event_id: event_id, question: question, options: options})
+    |> Poll.changeset(%{
+      event_id: event_id,
+      question: question,
+      options: options,
+      contributes_to_feeling: true
+    })
     |> Repo.insert()
     |> case do
       {:ok, poll} ->
@@ -28,6 +35,39 @@ defmodule EventPulse.Votes do
   @doc "Obtiene todas las encuestas asociadas a un id de evento"
   def list_polls(event_id) do
     Repo.all(from p in Poll, where: p.event_id == ^event_id)
+  end
+
+  @doc "Obtiene una encuesta por id o `nil`."
+  def get_poll(id), do: Repo.get(Poll, id)
+
+  @doc """
+  Actualiza pregunta y opciones de una votación.
+
+  Si ya hay votos persistidos, no se permiten cambiar las opciones (solo la pregunta si las opciones coinciden).
+  """
+  def update_poll(%Poll{} = poll, attrs) when is_map(attrs) do
+    question = attrs[:question] || attrs["question"]
+    options = attrs[:options] || attrs["options"]
+
+    vote_count = poll_vote_count(poll.id)
+
+    cond do
+      is_nil(question) or not is_list(options) ->
+        {:error, :invalid_attrs}
+
+      vote_count > 0 and options != poll.options ->
+        {:error, :cannot_change_options_with_votes}
+
+      true ->
+        poll
+        |> Poll.changeset(%{question: question, options: options})
+        |> Repo.update()
+    end
+  end
+
+  defp poll_vote_count(poll_id) do
+    from(v in Vote, where: v.poll_id == ^poll_id, select: count(v.id))
+    |> Repo.one()
   end
 
   @doc """
@@ -54,6 +94,43 @@ defmodule EventPulse.Votes do
     |> Enum.map(fn poll ->
       %{poll: poll, results: poll_vote_counts(poll.id)}
     end)
+  end
+
+  @doc """
+  Listado serializable para API: todas las encuestas con resultados y si aportan al Social Feeling.
+  """
+  def list_polls_voting_results_for_event(event_id) do
+    event_id
+    |> list_polls()
+    |> Enum.sort_by(& &1.inserted_at, DateTime)
+    |> Enum.map(fn poll ->
+      results = poll_vote_counts(poll.id)
+      total = results |> Map.values() |> Enum.sum()
+      percentages = Map.new(results, fn {k, v} -> {k, vote_pct(v, total)} end)
+
+      ranked_options =
+        results
+        |> Enum.sort_by(fn {choice, c} -> {-c, choice} end)
+        |> Enum.map(fn {choice, _} -> choice end)
+
+      %{
+        poll_id: poll.id,
+        question: poll.question,
+        contributes_to_feeling: poll.contributes_to_feeling,
+        options: poll.options,
+        status: poll.status,
+        results: results,
+        total_votes: total,
+        percentages: percentages,
+        ranked_options: ranked_options
+      }
+    end)
+  end
+
+  defp vote_pct(_count, 0), do: 0.0
+
+  defp vote_pct(count, total) when total > 0 do
+    Float.round(count * 100.0 / total, 2)
   end
 
   @doc "Cambia el estado de una encuesta a 'closed' para impedir nuevos votos"
