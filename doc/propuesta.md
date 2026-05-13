@@ -4,7 +4,7 @@
 
 EventPulse es una plataforma de comunicación en tiempo real que permite a usuarios registrados participar en eventos de la vida real mediante chat en vivo y votaciones mientras el evento está en directo.
 
-Al finalizar el evento, el sistema cierra votaciones y mensajes, agrega los votos y calcula el Social Feeling, un indicador cuantitativo y cualitativo que resume la percepción colectiva. Ese resultado y las votaciones quedan persistidos y consultables en el detalle del evento.
+Al **finalizar** el evento, el sistema **cierra todas las encuestas** asociadas (no se admiten votos posteriores), **persiste** los votos en base de datos y **vacía de forma best-effort** el buffer de chat del evento en **Redis**. El **detalle del evento finalizado** muestra un **resumen de recuentos** por pregunta (historial de votación). En la **versión actual del código** no se calcula ni persiste un indicador agregado tipo “Social Feeling”; la tabla `social_feeling_results` fue retirada por migración (`RemoveSocialFeeling`). La exposición al usuario es principalmente **LiveView** (navegador autenticado), sin API REST pública de eventos.
 
 El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supervisión y modelo adecuado para mensajería concurrente y distribuida bajo carga.
 
@@ -48,13 +48,13 @@ El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supe
 | RF-10 | Un usuario deberá poder emitir o modificar su voto mientras la votación o el evento no hayan terminado. |
 | RF-11 | Los resultados parciales deberán actualizarse y difundirse a los participantes en tiempo razonablemente cercano al real. |
 
-### 3.5 Cierre, Social Feeling e historial
+### 3.5 Cierre e historial de votaciones
 
 | ID | Requisito |
 |----|-----------|
-| RF-12 | Al finalizar el evento, las votaciones deberán cerrarse y el sistema deberá calcular el Social Feeling (sin aceptar votos posteriores al cierre). |
-| RF-13 | El sistema deberá computar el Social Feeling como agregación ponderada de todas las votaciones recibidas (o fórmula equivalente fijada y documentada). |
-| RF-14 | El Social Feeling y el historial completo de votaciones deberán persistirse de forma permanente y ser accesibles en el detalle del evento vía API (y/o contrato documentado). |
+| RF-12 | Al finalizar el evento, todas las encuestas asociadas pasan a estado cerrado y no se aceptan votos nuevos ni modificaciones. |
+| RF-13 | Tras el cierre, el sistema elimina de forma **best-effort** el buffer de chat del evento en Redis (no revierte el cierre en base de datos si Redis falla). |
+| RF-14 | Los votos por encuesta quedan persistidos en base de datos; el detalle del evento **finalizado** muestra el resumen de resultados por pregunta en la interfaz LiveView. |
 
 ## 4. Requisitos no funcionales
 
@@ -66,7 +66,7 @@ El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supe
 | RNF-04 | Tolerancia a fallos | Se buscará que el fallo de una sala o proceso aislable tenga impacto acotado en el resto del sistema y que los supervisores OTP permitan recuperación automática o manual. |
 | RNF-05 | Consistencia de votos | A efectos de cierre del evento, deberá garantizarse un solo voto vigente por usuario y pregunta; los recuentos en vivo en un despliegue multi‑nodo podrán mostrar pequeños desfases breves entre clientes. |
 | RNF-06 | Escalabilidad horizontal | La arquitectura deberá contemplar varios nodos de aplicación y el reparto de carga a alto nivel. |
-| RNF-07 | Seguridad | Las contraseñas no se almacenarán en claro; se usará un hash fuerte de uso habitual en Elixir (p. ej. bcrypt). |
+| RNF-07 | Seguridad | Las contraseñas no se almacenan en claro; se usa **PBKDF2** (dependencia `pbkdf2_elixir`) con hash almacenado de forma segura. |
 | RNF-08 | Observabilidad | Se plantea usar Telemetry y logging en los puntos útiles para depurar. |
 | RNF-09 | Mantenibilidad y calidad del desarrollo | El código deberá ser legible y coherente y las pruebas automatizadas cubrirán las partes que el equipo considere prioritarias. |
 
@@ -84,103 +84,38 @@ Caja negra del producto frente a los actores: qué aporta EventPulse al particip
 
 ```mermaid
 C4Context
-  title EventPulse — Contexto
+  title EventPulse - Diagrama de Contexto
 
-  Person(participant, "Participante", "Usuario registrado: participa en eventos en directo, chat y votaciones")
-  Person(admin, "Administrador", "Gestiona el catálogo de eventos y su ciclo de vida")
+  Person(user, "Usuario", "Participa en eventos, chatea y vota")
+  Person(admin, "Administrador", "Crea y gestiona eventos")
 
-  System(ep, "EventPulse", "Sistema software que da soporte a eventos en vivo, comunicación en tiempo real, votaciones y resultado con las votaciones y el Social Feeling tras el cierre.")
+  System(eventpulse, "EventPulse", "Plataforma de eventos en tiempo real con chat y votaciones")
 
-  Rel(participant, ep, "Usa el sistema", "Consultas, participación en salas y votos")
-  Rel(admin, ep, "Usa el sistema", "Alta, modificación y control de eventos")
+  Rel(user, eventpulse, "Consulta eventos, envía mensajes y vota")
+  Rel(admin, eventpulse, "<br><br>Gestiona eventos y estados")
 ```
 
 ### 5.2 Vista de contenedores
 
-Lectura del diagrama: arriba, los clientes y el directorio; en el medio, dos nodos de aplicación típicos (N1 y N2) con los mismos roles; abajo, el nodo de escala Nm y, en un contenedor aparte, la base de datos compartida: el almacén es único para todo el sistema. El servicio de cierre no pasa por el directorio: se dispara al finalizar un evento, y escribe en la base de datos junto al evento.
+Vista **lógica** de contenedores (un solo límite `EventPulse`): interfaz Phoenix (HTTP/WebSocket), persistencia PostgreSQL y procesos OTP. En despliegue distribuido pueden existir réplicas y Redis para el buffer de chat; este diagrama los abstrae. *Nota:* la superficie hacia el navegador es **LiveView** y rutas de **autenticación** por HTTP; **Channels** cubren el tiempo real; en la **versión actual** **no** hay **API REST pública** para eventos ni salas (no se expone un backend HTTP REST consumible como catálogo externo). El bloque del diagrama refleja ese stack Phoenix unificado, no un desglose “API + SPA”.
 
 ```mermaid
 C4Container
-  title EventPulse — Vista de contenedores
+  title EventPulse - Diagrama de Contenedores
 
-  Person(participant, "Participante", "Cliente")
-  Person(admin, "Administrador", "Cliente")
+  Person(user, "Usuario")
+  Person(admin, "Administrador")
 
-  System_Boundary(sistema, "EventPulse") {
-    Container(directorio, "Directorio", "Entrada única", "Publica la interfaz hacia los clientes; redirige peticiones y devuelve respuestas.")
-
-    Container_Boundary(servidor_n1, "Servidor N1") {
-      Container(n1_svc_cuentas, "Cuentas y acceso", "Servicio", "Registro e identidad.")
-      Container(n1_svc_eventos, "Eventos y catálogo", "Servicio", "CRUD, estados y consultas.")
-      Container(n1_svc_salas, "Salas en vivo", "Servicio", "Chat y buffer de contexto.")
-      Container(n1_svc_votos, "Votaciones en directo", "Servicio", "Preguntas, votos y parciales.")
-      Container(n1_svc_cierre, "Cierre (interno)", "Proceso", "Sin API pública: orquesta fin de sala/voto y escribe resultados.")
-    }
-
-    Container_Boundary(servidor_n2, "Servidor N2") {
-      Container(n2_svc_cuentas, "Cuentas y acceso", "Servicio", "Homólogo de N1.")
-      Container(n2_svc_eventos, "Eventos y catálogo", "Servicio", "Homólogo de N1.")
-      Container(n2_svc_salas, "Salas en vivo", "Servicio", "Homólogo de N1.")
-      Container(n2_svc_votos, "Votaciones en directo", "Servicio", "Homólogo de N1.")
-      Container(n2_svc_cierre, "Cierre (interno)", "Proceso", "Homólogo de N1.")
-    }
-
-    Container_Boundary(servidor_nm, "Servidor Nm") {
-      Container(nm_svc_replica, "Réplica de servicios", "Servicio", "Mismos cuatro roles vía directorio + cierre interno; escala horizontal.")
-    }
-
-    Container_Boundary(contenedor_bd, "Almacén compartido") {
-      ContainerDb(db, "Base de datos", "Persistencia compartida", "Usuarios y datos de cuenta; eventos y estados; votos; Social Feeling e historial por evento; lecturas para catálogo y detalle.")
-    }
+  Container_Boundary(c1, "EventPulse") {
+    Container(api, "Phoenix (LiveView + Channels)", "Elixir/Phoenix", "Autenticación; UI principal en LiveView; chat y votación en tiempo real; sin API REST pública de eventos")
+    ContainerDb(db, "Base de datos", "PostgreSQL", "Usuarios, eventos, encuestas y votos")
+    Container(worker, "Workers/OTP", "Elixir (GenServer/Supervisors)", "Coordinación de dominio: agregación en vivo, cierre de encuestas (sin indicador SF persistido; véase §1)")
   }
 
-  Rel(participant, directorio, "Petición", "")
-  Rel(directorio, participant, "Respuesta", "")
-
-  Rel(admin, directorio, "Petición", "")
-  Rel(directorio, admin, "Respuesta", "")
-
-  Rel(directorio, n1_svc_cuentas, "Redirige", "")
-  Rel(n1_svc_cuentas, directorio, "Responde", "")
-  Rel(directorio, n1_svc_eventos, "Redirige", "")
-  Rel(n1_svc_eventos, directorio, "Responde", "")
-  Rel(directorio, n1_svc_salas, "Redirige", "")
-  Rel(n1_svc_salas, directorio, "Responde", "")
-  Rel(directorio, n1_svc_votos, "Redirige", "")
-  Rel(n1_svc_votos, directorio, "Responde", "")
-
-  Rel(directorio, n2_svc_cuentas, "Redirige", "")
-  Rel(n2_svc_cuentas, directorio, "Responde", "")
-  Rel(directorio, n2_svc_eventos, "Redirige", "")
-  Rel(n2_svc_eventos, directorio, "Responde", "")
-  Rel(directorio, n2_svc_salas, "Redirige", "")
-  Rel(n2_svc_salas, directorio, "Responde", "")
-  Rel(directorio, n2_svc_votos, "Redirige", "")
-  Rel(n2_svc_votos, directorio, "Responde", "")
-
-  Rel(directorio, nm_svc_replica, "Redirige", "")
-  Rel(nm_svc_replica, directorio, "Responde", "")
-
-  Rel(n1_svc_cuentas, db, "Lee / escribe", "Usuarios")
-  Rel(n1_svc_eventos, db, "Lee / escribe", "Eventos")
-  Rel(n1_svc_votos, db, "Lee / escribe", "Votos")
-  Rel(n1_svc_salas, db, "Opcional", "Traza de sala")
-
-  Rel(n2_svc_cuentas, db, "Lee / escribe", "")
-  Rel(n2_svc_eventos, db, "Lee / escribe", "")
-  Rel(n2_svc_votos, db, "Lee / escribe", "")
-  Rel(n2_svc_salas, db, "Opcional", "")
-
-  Rel(nm_svc_replica, db, "Lee / escribe", "Misma persistencia")
-
-  Rel(n1_svc_eventos, n1_svc_cierre, "Finalizado")
-  Rel(n1_svc_votos, n1_svc_cierre, "Contexto")
-  Rel(n1_svc_cierre, n1_svc_salas, "Orden")
-  Rel(n1_svc_cierre, db, "Lee / escribe")
-
-  Rel(n2_svc_eventos, n2_svc_cierre, "Finalizado", "")
-  Rel(n2_svc_votos, n2_svc_cierre, "Contexto", "")
-  Rel(n2_svc_cierre, n2_svc_salas, "Orden", "")
-  Rel(n2_svc_cierre, db, "Lee / escribe", "")
+  Rel(user, api, "Usa", "HTTPS / WebSocket")
+  Rel(admin, api, "Administra", "HTTPS")
+  Rel(api, db, "Lee/<br>escribe")
+  Rel(api, worker, "<br><br>Publica eventos internos /<br>PubSub")
+  Rel(worker, db, "Lee/<br>escribe<br>(dominio)")
 ```
 

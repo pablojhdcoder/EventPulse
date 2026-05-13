@@ -27,8 +27,8 @@ En `event_pulse/` conviven estas capacidades:
 - **Eventos**: listado y detalle de eventos, gestion de estados.
 - **Chat en vivo**: sala por evento con difusion en tiempo real.
 - **Votacion en vivo**: voto por usuario y recuento actualizado.
-- **Cierre y agregacion**: flujo de cierre con resultados consolidados.
-- **Social Feeling**: resultado agregado asociado al evento finalizado.
+- **Cierre**: transición a `finalizado`, cierre de encuestas en base de datos, notificación por PubSub y limpieza best-effort del buffer de chat en Redis.
+- **Historial en interfaz**: en evento finalizado, la LiveView muestra el recap de votos por encuesta (sin tabla ni indicador agregado tipo Social Feeling en PostgreSQL).
 
 ## Persistencia y estado efimero
 
@@ -36,7 +36,7 @@ Persistido en base de datos:
 
 - usuarios;
 - eventos;
-- votos y resultados agregados (incluyendo Social Feeling).
+- encuestas (`polls`) y votos asociados (recuentos consultables en la aplicación; no hay fila de “resultado SF” persistido).
 
 Efimero (no persistencia historica en PostgreSQL):
 
@@ -49,11 +49,11 @@ Efimero (no persistencia historica en PostgreSQL):
 - El chat mantiene un buffer reciente para mejorar la experiencia al entrar en una sala activa.
 - Ese buffer se almacena en Redis (no en memoria local del proceso), con expiracion y acceso compartido entre replicas.
 - En ejecucion distribuida, Redis se usa como soporte compartido para coordinar el estado efimero del chat entre replicas.
-- Redis no sustituye la persistencia de negocio: los datos autoritativos (usuarios, eventos, votos y resultados) siguen en PostgreSQL.
+- Redis no sustituye la persistencia de negocio: los datos autoritativos (usuarios, eventos, encuestas y votos) siguen en PostgreSQL.
 
 ## Consistencia en multi-nodo
 
-- La fuente autoritativa para cierre y resultados es PostgreSQL.
+- La fuente autoritativa para cierre de evento, encuestas y votos es PostgreSQL.
 - En despliegue multi-nodo puede haber desfases breves en vistas en vivo.
 - Redis reduce las divergencias de estado efimero entre nodos, pero no convierte ese estado en historico permanente.
 
