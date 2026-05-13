@@ -1,5 +1,4 @@
 defmodule EventPulse do
-
   @doc """
   Verdadero si el proceso nombrado `EventPulse.PubSub` está registrado.
 
