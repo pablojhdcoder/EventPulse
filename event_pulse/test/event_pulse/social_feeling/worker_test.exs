@@ -119,7 +119,6 @@ defmodule EventPulse.SocialFeeling.WorkerTest do
       |> Vote.changeset(%{poll_id: scale.id, user_id: 11, choice: "5"})
       |> Repo.insert!()
 
-
       assert {:ok, %Result{} = r} = Worker.process_event_sync(event.id)
       assert r.score == 0.5
       assert r.numeric_vote_count == 3

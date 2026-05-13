@@ -174,7 +174,9 @@ defmodule EventPulse.EventsTest do
 
       assert eventually(fn ->
                result = SocialFeeling.get_for_event(event.id)
-               result && is_nil(result.score) && is_nil(result.label) && result.numeric_vote_count == 0
+
+               result && is_nil(result.score) && is_nil(result.label) &&
+                 result.numeric_vote_count == 0
              end)
     end
 

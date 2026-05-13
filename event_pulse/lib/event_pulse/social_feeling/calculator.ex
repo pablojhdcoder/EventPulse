@@ -88,7 +88,8 @@ defmodule EventPulse.SocialFeeling.Calculator do
   (todas las encuestas contribuyentes vacías).
   """
   @spec social_feeling_from_scale_poll_means([float()], non_neg_integer()) ::
-          %{score: float(), label: atom(), numeric_vote_count: non_neg_integer(), breakdown: %{}} | nil
+          %{score: float(), label: atom(), numeric_vote_count: non_neg_integer(), breakdown: %{}}
+          | nil
   def social_feeling_from_scale_poll_means(means, numeric_vote_count)
       when is_list(means) and is_integer(numeric_vote_count) do
     case means do

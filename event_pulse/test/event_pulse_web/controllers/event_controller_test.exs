@@ -7,7 +7,9 @@ defmodule EventPulseWeb.EventControllerTest do
   alias EventPulse.SocialFeeling.Result
   alias EventPulse.Votes
 
-  test "GET show de evento finalizado incluye social_feeling_label y voting_results", %{conn: conn} do
+  test "GET show de evento finalizado incluye social_feeling_label y voting_results", %{
+    conn: conn
+  } do
     event =
       event_fixture(%{
         status: "finalizado",
@@ -28,7 +30,8 @@ defmodule EventPulseWeb.EventControllerTest do
     })
     |> Repo.insert!()
 
-    assert {:ok, _} = Votes.create_poll(event.id, "¿Gustó?", ["1", "2"], contributes_to_feeling: true)
+    assert {:ok, _} =
+             Votes.create_poll(event.id, "¿Gustó?", ["1", "2"], contributes_to_feeling: true)
 
     conn = get(conn, ~p"/api/events/#{event.id}")
     assert %{"data" => data} = json_response(conn, 200)
