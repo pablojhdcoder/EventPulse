@@ -20,7 +20,8 @@ defmodule EventPulse.SocialFeeling.Worker do
 
   Expone dos formas de disparo:
 
-    * `process_event/1` — asíncrono (cast) para producción.
+    * `process_event/1` — asíncrono: encola un trabajo en `Task.Supervisor` para no
+      serializar cierres en el GenServer (los reintentos siguen llegando a este proceso).
     * `process_event_sync/1` — síncrono (call) usado por los tests.
   """
 
@@ -68,14 +69,37 @@ defmodule EventPulse.SocialFeeling.Worker do
 
   @impl true
   def handle_cast({:process_event, event_id, attempt}, state) do
-    _ = process_async(event_id, attempt)
-    {:noreply, state}
+    case Task.Supervisor.start_child(EventPulse.TaskSupervisor, fn ->
+           run_process_job(event_id, attempt)
+         end) do
+      {:ok, _} ->
+        {:noreply, state}
+
+      {:error, reason} ->
+        Logger.error(
+          "social_feeling.worker: no se pudo arrancar tarea event_id=#{event_id} reason=#{inspect(reason)}"
+        )
+
+        {:noreply, state}
+    end
   end
 
   @impl true
   def handle_info({:retry_process_event, event_id, attempt}, state) do
-    _ = process_async(event_id, attempt)
-    {:noreply, state}
+    case Task.Supervisor.start_child(EventPulse.TaskSupervisor, fn ->
+           run_process_job(event_id, attempt)
+         end) do
+      {:ok, _} ->
+        {:noreply, state}
+
+      {:error, reason} ->
+        Logger.error(
+          "social_feeling.worker: no se pudo arrancar tarea de reintento event_id=#{event_id} " <>
+            "reason=#{inspect(reason)}"
+        )
+
+        {:noreply, state}
+    end
   end
 
   @impl true
@@ -84,6 +108,10 @@ defmodule EventPulse.SocialFeeling.Worker do
   end
 
   # --- Lógica interna ---
+
+  defp run_process_job(event_id, attempt) do
+    process_async(event_id, attempt)
+  end
 
   defp process_async(event_id, attempt) do
     case safe_process(event_id) do
@@ -114,7 +142,16 @@ defmodule EventPulse.SocialFeeling.Worker do
         "attempt=#{attempt + 1}/#{@max_retries} reason=#{inspect(reason)}"
     )
 
-    Process.send_after(self(), {:retry_process_event, event_id, attempt + 1}, delay)
+    worker = Process.whereis(__MODULE__)
+
+    if is_pid(worker) do
+      Process.send_after(worker, {:retry_process_event, event_id, attempt + 1}, delay)
+    else
+      Logger.error(
+        "social_feeling.worker: no hay proceso #{inspect(__MODULE__)} para reintentar " <>
+          "event_id=#{event_id}"
+      )
+    end
   end
 
   defp maybe_retry(event_id, _attempt, reason) do
