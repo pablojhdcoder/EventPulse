@@ -31,6 +31,58 @@
         <.input field={@form[:starts_at]} type="datetime-local" label="Fecha de inicio *" required />
         <.input field={@form[:ends_at]} type="datetime-local" label="Fecha de fin" />
 
+        <section
+          :if={@mode == :new}
+          style="border:1px solid var(--color-border);border-radius:0.875rem;padding:1rem;background:#f8fafc;"
+        >
+          <h2 style="font-size:1rem;font-weight:800;margin:0 0 0.35rem;">Votación inicial</h2>
+          <p style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
+            Opcional: crea una primera votación asociada al evento.
+          </p>
+
+          <div class="ep-field">
+            <label class="ep-label" for="poll-question">Pregunta de la votación</label>
+            <input
+              id="poll-question"
+              name="poll[question]"
+              type="text"
+              value={@poll_form.question}
+              class="ep-input"
+              placeholder="Ej. ¿Quién ganará?"
+            />
+          </div>
+
+          <div class="ep-field">
+            <label class="ep-label" for="poll-option-count">Número de opciones</label>
+            <select
+              id="poll-option-count"
+              name="poll[option_count]"
+              class="ep-input"
+            >
+              <option value="2" selected={@poll_form.option_count == 2}>2 opciones</option>
+              <option value="3" selected={@poll_form.option_count == 3}>3 opciones</option>
+              <option value="4" selected={@poll_form.option_count == 4}>4 opciones</option>
+            </select>
+          </div>
+
+          <div class="ep-stack" style="gap:0.75rem;">
+            <div
+              :for={{option, index} <- Enum.with_index(@poll_form.options)}
+              class="ep-field"
+            >
+              <label class="ep-label" for={"poll-option-#{index}"}>Opción {index + 1}</label>
+              <input
+                id={"poll-option-#{index}"}
+                name={"poll[options][#{index}]"}
+                type="text"
+                value={option}
+                class="ep-input"
+                placeholder={"Texto de la opción #{index + 1}"}
+              />
+            </div>
+          </div>
+        </section>
+
         <div class="ep-form-actions">
           <.button type="submit" variant="primary">Guardar</.button>
           <a href={~p"/events"} class="ep-button ep-button--outline">Cancelar</a>

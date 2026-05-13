@@ -86,6 +86,7 @@ services:
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local
+      START_VOTE_AGGREGATOR: "true"
     networks:
       event_pulse_net:
         aliases:
@@ -99,6 +100,7 @@ services:
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local
+      START_VOTE_AGGREGATOR: "false"
     networks:
       event_pulse_net:
         aliases:
@@ -112,6 +114,7 @@ services:
     environment:
       <<: *web_env
       CLUSTER_PEER_HOSTS: web1.local,web2.local,web3.local
+      START_VOTE_AGGREGATOR: "false"
     networks:
       event_pulse_net:
         aliases:

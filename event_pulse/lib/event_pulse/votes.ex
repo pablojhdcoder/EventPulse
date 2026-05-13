@@ -6,7 +6,7 @@ defmodule EventPulse.Votes do
   """
   import Ecto.Query
   alias EventPulse.Repo
-  alias EventPulse.Votes.{Poll, VoteAggregator}
+  alias EventPulse.Votes.{Poll, Vote, VoteAggregator}
 
   # --- Gestión de encuestas, Polls ---
 
@@ -15,11 +15,45 @@ defmodule EventPulse.Votes do
     %Poll{}
     |> Poll.changeset(%{event_id: event_id, question: question, options: options})
     |> Repo.insert()
+    |> case do
+      {:ok, poll} ->
+        Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:poll_created, poll})
+        {:ok, poll}
+
+      error ->
+        error
+    end
   end
 
   @doc "Obtiene todas las encuestas asociadas a un id de evento"
   def list_polls(event_id) do
     Repo.all(from p in Poll, where: p.event_id == ^event_id)
+  end
+
+  @doc """
+  Recuento de votos persistidos por opción para una encuesta (resultado fiel al cierre).
+  """
+  def poll_vote_counts(poll_id) do
+    from(v in Vote,
+      where: v.poll_id == ^poll_id,
+      group_by: v.choice,
+      select: {v.choice, count(v.id)}
+    )
+    |> Repo.all()
+    |> Map.new()
+  end
+
+  @doc """
+  Lista encuestas del evento ordenadas por creación, cada una con `results` desde la BD.
+  Útil cuando el evento está finalizado y ya no hay encuestas abiertas en vivo.
+  """
+  def list_polls_with_db_results(event_id) do
+    event_id
+    |> list_polls()
+    |> Enum.sort_by(& &1.inserted_at, DateTime)
+    |> Enum.map(fn poll ->
+      %{poll: poll, results: poll_vote_counts(poll.id)}
+    end)
   end
 
   @doc "Cambia el estado de una encuesta a 'closed' para impedir nuevos votos"
