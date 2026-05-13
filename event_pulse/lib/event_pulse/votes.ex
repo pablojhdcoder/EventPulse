@@ -18,8 +18,7 @@ defmodule EventPulse.Votes do
     |> Poll.changeset(%{
       event_id: event_id,
       question: question,
-      options: options,
-      contributes_to_feeling: true
+      options: options
     })
     |> Repo.insert()
     |> case do
@@ -97,7 +96,7 @@ defmodule EventPulse.Votes do
   end
 
   @doc """
-  Listado serializable para API: todas las encuestas con resultados y si aportan al Social Feeling.
+  Listado serializable para API: todas las encuestas con resultados y recuentos.
   """
   def list_polls_voting_results_for_event(event_id) do
     event_id
@@ -116,7 +115,6 @@ defmodule EventPulse.Votes do
       %{
         poll_id: poll.id,
         question: poll.question,
-        contributes_to_feeling: poll.contributes_to_feeling,
         options: poll.options,
         status: poll.status,
         results: results,
