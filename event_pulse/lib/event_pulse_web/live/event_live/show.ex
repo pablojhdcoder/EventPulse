@@ -1,7 +1,7 @@
 defmodule EventPulseWeb.EventLive.Show do
   @moduledoc """
   Vista LiveView de un evento: chat, votación en tiempo real (poll + `VoteAggregator`)
-  y panel Social Feeling vía PubSub.
+  y recap de votaciones al finalizar.
 
   El usuario autenticado (`EventPulse.Accounts.Auth`) define el autor en el chat
   (`current_user.username`). Los votos usan el entero `demo_user_id` de sesión
@@ -12,15 +12,13 @@ defmodule EventPulseWeb.EventLive.Show do
   - `{:voted, :poll, poll_id, results}` — recuento por encuesta (`VoteAggregator`, tópico `poll:<id>`)
   - `{:voted, :event, event_id, results}` — flujo legacy por evento sin encuestas abiertas
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
-  - `{:social_feeling, result}` — resultado consolidado al cerrar
-  - `{:event_room_closed, event_id}` — cierre de sala (worker de Social Feeling; mismo tópico `event:<id>` que el chat)
+  - `{:event_room_closed, event_id}` — cierre de sala (mismo tópico `event:<id>` que el chat)
   """
 
   use EventPulseWeb, :live_view
 
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
-  alias EventPulse.SocialFeeling
   alias EventPulse.Votes
   alias EventPulse.Votes.VoteAggregator
 
@@ -43,6 +41,7 @@ defmodule EventPulseWeb.EventLive.Show do
           {:ok, event} ->
             event_key = Integer.to_string(event_id)
             polls = open_polls(event_id)
+            final_rows = final_poll_rows(event)
 
             demo_user_id =
               normalize_demo_user_id(
@@ -54,10 +53,10 @@ defmodule EventPulseWeb.EventLive.Show do
               |> assign(:event, event)
               |> assign(:event_key, event_key)
               |> assign(:polls, polls)
-              |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
               |> assign(:demo_user_id, demo_user_id)
               |> assign(:vote_results, vote_results_by_poll(polls))
-              |> assign(:final_poll_rows, final_poll_rows(event))
+              |> assign(:final_poll_rows, final_rows)
+              |> assign(:total_votes, total_votes_from_rows(final_rows))
               |> assign(:new_poll_form, new_poll_form())
               |> assign(:draft, "")
               |> assign(:max_body_length, @max_body_length)
@@ -138,43 +137,65 @@ defmodule EventPulseWeb.EventLive.Show do
         </div>
       </div>
 
-      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
-        <%!-- Panel de votaciones --%>
-        <section style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-          <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Votaciones</h2>
+      <%!-- Recap de votaciones (evento finalizado) --%>
+      <.event_recap :if={@event.status == "finalizado"} rows={@final_poll_rows} total_votes={@total_votes} />
+
+      <%!-- Panel de votaciones en directo / programado --%>
+      <div :if={@event.status != "finalizado"} style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1.5rem;">
+        <section style="background:#fff;border-radius:0.5rem;padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
+          <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;color:#1e293b;">Votaciones</h2>
+          <p style="color:#64748b;font-size:0.875rem;margin:0 0 1.25rem;">
+            {if @event.status == "en_directo", do: "Resultados en tiempo real.", else: "Las votaciones se abren cuando el evento esté en directo."}
+          </p>
 
           <div
             :if={@event.status == "en_directo" && @polls != []}
-            style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;"
+            style="display:flex;flex-direction:column;gap:1.25rem;margin-bottom:1rem;"
           >
             <article
               :for={poll <- @polls}
-              style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.75rem;background:#f8fafc;"
+              style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:1rem;background:#f8fafc;"
             >
-              <p style="margin:0 0 0.5rem;color:#475569;font-size:0.875rem;font-weight:700;">
+              <p style="margin:0 0 0.25rem;font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">
+                Votación activa
+              </p>
+              <p style="margin:0 0 0.875rem;color:#1e293b;font-size:0.95rem;font-weight:700;">
                 {poll.question}
               </p>
-              <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:0.75rem;">
+
+              <div style="display:flex;flex-direction:column;gap:0.5rem;margin-bottom:1rem;">
                 <.vote_button :for={choice <- poll.options} poll_id={poll.id} choice={choice} />
               </div>
 
-              <div :if={map_size(Map.get(@vote_results, poll.id, %{})) > 0}>
-                <h3 style="font-size:0.8rem;font-weight:600;margin:0 0 0.5rem;color:#475569;">Recuento actual</h3>
-                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.375rem;">
-                  <li
-                    :for={{choice, count} <- Enum.sort(Map.get(@vote_results, poll.id, %{}))}
-                    style="display:flex;justify-content:space-between;"
-                  >
-                    <span style="font-size:0.875rem;">{choice}</span>
-                    <span style="font-weight:700;font-size:0.875rem;">{count}</span>
+              <%!-- Resultados en tiempo real con barras de progreso --%>
+              <% live_results = Map.get(@vote_results, poll.id, %{}) %>
+              <% live_total = live_results |> Map.values() |> Enum.sum() %>
+
+              <div :if={live_total > 0}>
+                <h3 style="font-size:0.8rem;font-weight:600;margin:0 0 0.625rem;color:#475569;">Recuento en tiempo real</h3>
+                <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.625rem;">
+                  <li :for={choice <- poll.options}>
+                    <% count = Map.get(live_results, choice, 0) %>
+                    <% pct = if live_total > 0, do: Float.round(count * 100.0 / live_total, 1), else: 0.0 %>
+                    <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.3rem;">
+                      <span style="font-size:0.875rem;color:#334155;font-weight:500;">{choice}</span>
+                      <span style="font-size:0.875rem;font-weight:700;color:#1e293b;">
+                        {count}
+                        <span style="font-weight:400;color:#64748b;font-size:0.8rem;">({pct}%)</span>
+                      </span>
+                    </div>
+                    <div style="background:#e2e8f0;border-radius:9999px;height:7px;overflow:hidden;">
+                      <div style={"background:#4f46e5;border-radius:9999px;height:7px;width:#{pct}%;transition:width 0.3s;"}>
+                      </div>
+                    </div>
                   </li>
                 </ul>
+                <p style="margin:0.75rem 0 0;color:#64748b;font-size:0.8rem;text-align:right;">
+                  {live_total} {if live_total == 1, do: "voto", else: "votos"}
+                </p>
               </div>
 
-              <div
-                :if={map_size(Map.get(@vote_results, poll.id, %{})) == 0}
-                style="color:#94a3b8;font-size:0.875rem;"
-              >
+              <div :if={live_total == 0} style="color:#94a3b8;font-size:0.875rem;">
                 Sin votos aún.
               </div>
             </article>
@@ -188,76 +209,11 @@ defmodule EventPulseWeb.EventLive.Show do
             Las votaciones solo están abiertas cuando el evento está en directo.
           </div>
 
-          <div
-            :if={@event.status == "finalizado"}
-            style="display:flex;flex-direction:column;gap:1rem;margin-bottom:1rem;"
-          >
-            <p style="margin:0;color:#64748b;font-size:0.875rem;">
-              Resultado final de cada votación (evento cerrado).
-            </p>
-            <p :if={@final_poll_rows == []} style="color:#64748b;font-size:0.875rem;margin:0;">
-              No hubo votaciones en este evento.
-            </p>
-            <article
-              :for={row <- @final_poll_rows}
-              style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:0.75rem;background:#f8fafc;"
-            >
-              <p style="margin:0 0 0.35rem;font-size:0.75rem;font-weight:600;color:#64748b;text-transform:uppercase;">
-                Votación finalizada
-              </p>
-              <p style="margin:0 0 0.75rem;color:#334155;font-size:0.9rem;font-weight:700;">
-                {row.poll.question}
-              </p>
-              <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.375rem;">
-                <li
-                  :for={choice <- row.poll.options}
-                  style="display:flex;justify-content:space-between;font-size:0.875rem;"
-                >
-                  <span>{choice}</span>
-                  <span style="font-weight:700;">{Map.get(row.results, choice, 0)}</span>
-                </li>
-              </ul>
-              <p
-                :if={Enum.sum(Map.values(row.results)) == 0}
-                style="margin:0.5rem 0 0;color:#94a3b8;font-size:0.8rem;"
-              >
-                Sin votos registrados en esta encuesta.
-              </p>
-            </article>
-          </div>
-
           <.new_poll_form :if={@event.status == "en_directo" && admin?(@current_user)} form={@new_poll_form} />
-        </section>
-
-        <%!-- Resultado final --%>
-        <section :if={@event.status == "finalizado"} style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
-          <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Social Feeling final</h2>
-
-          <div :if={@social_feeling != nil && @social_feeling.label != nil}>
-            <p style="font-size:0.875rem;color:#64748b;margin:0 0 0.5rem;">Resultado consolidado del evento a partir de las votaciones numéricas.</p>
-            <p style="margin:0 0 0.5rem;">
-              <span style="font-weight:600;">Etiqueta:</span> {SocialFeeling.humanize_label(@social_feeling.label)}
-            </p>
-            <p style="margin:0;">
-              <span style="font-weight:600;">Recuento agregado de votos numéricos:</span> {@social_feeling.numeric_vote_count}
-            </p>
-          </div>
-
-          <p
-            :if={@social_feeling != nil && is_nil(@social_feeling.label)}
-            style="color:#64748b;font-size:0.875rem;margin:0;"
-          >
-            No hay indicador de Social Feeling para este evento porque no hay votos en votaciones numéricas.
-          </p>
-
-          <p :if={@social_feeling == nil} style="color:#94a3b8;font-size:0.875rem;margin:0;">
-            Calculando resultado final…
-          </p>
         </section>
 
         <%!-- Panel de chat (oculto al finalizar el evento) --%>
         <section
-          :if={@event.status != "finalizado"}
           style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);display:flex;flex-direction:column;gap:0.75rem;"
         >
           <h2 style="font-size:1rem;font-weight:600;margin:0;">Chat en directo</h2>
@@ -317,7 +273,77 @@ defmodule EventPulseWeb.EventLive.Show do
     """
   end
 
-  # Small helper component for vote buttons
+  # ---------------------------------------------------------------------------
+  # Componente: recap de votaciones al cierre del evento
+  # ---------------------------------------------------------------------------
+
+  defp event_recap(assigns) do
+    ~H"""
+    <section style="background:#fff;border-radius:0.5rem;padding:1.5rem;box-shadow:0 1px 3px rgba(0,0,0,.08);margin-bottom:1.5rem;">
+      <h2 style="font-size:1.1rem;font-weight:700;margin:0 0 0.25rem;color:#1e293b;">
+        Resumen de votaciones
+      </h2>
+      <p style="color:#64748b;font-size:0.875rem;margin:0 0 1.25rem;">
+        Resultados definitivos del evento.
+      </p>
+
+      <p :if={@rows == []} style="color:#94a3b8;font-size:0.875rem;">
+        No hubo votaciones en este evento.
+      </p>
+
+      <div style="display:flex;flex-direction:column;gap:1.25rem;">
+        <article
+          :for={row <- @rows}
+          style="border:1px solid #e2e8f0;border-radius:0.5rem;padding:1rem;background:#f8fafc;"
+        >
+          <p style="margin:0 0 0.25rem;font-size:0.75rem;font-weight:600;color:#94a3b8;text-transform:uppercase;letter-spacing:0.06em;">
+            Votación cerrada
+          </p>
+          <p style="margin:0 0 0.875rem;color:#1e293b;font-size:0.95rem;font-weight:700;">
+            {row.poll.question}
+          </p>
+
+          <% poll_total = row.results |> Map.values() |> Enum.sum() %>
+
+          <ul style="list-style:none;padding:0;margin:0;display:flex;flex-direction:column;gap:0.625rem;">
+            <li :for={choice <- row.poll.options}>
+              <% count = Map.get(row.results, choice, 0) %>
+              <% pct = if poll_total > 0, do: Float.round(count * 100.0 / poll_total, 1), else: 0.0 %>
+              <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:0.3rem;">
+                <span style="font-size:0.875rem;color:#334155;font-weight:500;">{choice}</span>
+                <span style="font-size:0.875rem;font-weight:700;color:#1e293b;">
+                  {count}
+                  <span style="font-weight:400;color:#64748b;font-size:0.8rem;">({pct}%)</span>
+                </span>
+              </div>
+              <div style="background:#e2e8f0;border-radius:9999px;height:7px;overflow:hidden;">
+                <div style={"background:#4f46e5;border-radius:9999px;height:7px;width:#{pct}%;transition:width 0.3s;"}>
+                </div>
+              </div>
+            </li>
+          </ul>
+
+          <p :if={poll_total == 0} style="margin:0.75rem 0 0;color:#94a3b8;font-size:0.8rem;">
+            Sin votos registrados en esta votación.
+          </p>
+          <p :if={poll_total > 0} style="margin:0.75rem 0 0;color:#64748b;font-size:0.8rem;text-align:right;">
+            {poll_total} {if poll_total == 1, do: "voto", else: "votos"}
+          </p>
+        </article>
+      </div>
+
+      <%!-- Total de votos del evento --%>
+      <div
+        :if={@total_votes > 0}
+        style="margin-top:1.5rem;border-top:2px solid #4f46e5;padding-top:1rem;display:flex;justify-content:space-between;align-items:center;"
+      >
+        <span style="font-size:0.95rem;font-weight:600;color:#334155;">Total de votos del evento</span>
+        <span style="font-size:1.4rem;font-weight:800;color:#4f46e5;">{@total_votes}</span>
+      </div>
+    </section>
+    """
+  end
+
   defp vote_button(assigns) do
     ~H"""
     <button
@@ -325,9 +351,9 @@ defmodule EventPulseWeb.EventLive.Show do
       phx-click="cast_vote"
       phx-value-poll-id={@poll_id}
       phx-value-choice={@choice}
-      style="text-align:left;background:#f0f9ff;border:1px solid #bae6fd;border-radius:0.375rem;padding:0.4rem 0.75rem;font-size:0.875rem;cursor:pointer;"
+      style="text-align:left;background:#f0f9ff;border:1px solid #bae6fd;border-radius:0.375rem;padding:0.5rem 0.9rem;font-size:0.875rem;font-weight:500;cursor:pointer;width:100%;transition:background 120ms;"
     >
-      Votar: {@choice}
+      {@choice}
     </button>
     """
   end
@@ -373,9 +399,10 @@ defmodule EventPulseWeb.EventLive.Show do
         <input
           id={"new-poll-option-#{index}"}
           name={"poll[options][#{index}]"}
-          type="number"
+          type="text"
           value={option}
-          placeholder={"Número de la opción #{index + 1}"}
+          placeholder={"Ej. Sí, Phoenix, Opción #{index + 1}"}
+          maxlength="50"
           style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;"
         />
       </div>
@@ -550,10 +577,6 @@ defmodule EventPulseWeb.EventLive.Show do
      |> assign(:vote_results, vote_results_by_poll(polls))}
   end
 
-  def handle_info({:social_feeling, result}, socket) do
-    {:noreply, assign(socket, :social_feeling, result)}
-  end
-
   def handle_info({:event_room_closed, event_id}, socket) do
     if socket.assigns.event.id == event_id do
       {:noreply, put_flash(socket, :info, "El chat de este evento se ha cerrado.")}
@@ -579,14 +602,15 @@ defmodule EventPulseWeb.EventLive.Show do
     event_id = updated_event.id
     polls = open_polls(event_id)
     vote_results = vote_results_by_poll(polls)
+    final_rows = final_poll_rows(updated_event)
 
     socket =
       socket
       |> assign(:event, updated_event)
       |> assign(:polls, polls)
-      |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
       |> assign(:vote_results, vote_results)
-      |> assign(:final_poll_rows, final_poll_rows(updated_event))
+      |> assign(:final_poll_rows, final_rows)
+      |> assign(:total_votes, total_votes_from_rows(final_rows))
 
     if connected?(socket) do
       new_poll_ids = Enum.map(polls, & &1.id)
@@ -617,6 +641,12 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   defp final_poll_rows(_event), do: []
+
+  defp total_votes_from_rows(rows) do
+    rows
+    |> Enum.flat_map(fn %{results: results} -> Map.values(results) end)
+    |> Enum.sum()
+  end
 
   defp vote_results_by_poll(polls) do
     polls

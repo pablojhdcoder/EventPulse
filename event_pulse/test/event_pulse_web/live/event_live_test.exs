@@ -213,9 +213,11 @@ defmodule EventPulseWeb.EventLiveTest do
       {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
 
       assert html =~ "¿Qué opción prefieres?"
-      assert html =~ "Votar: 1"
-      assert html =~ "Votar: 2"
-      refute html =~ "Votar: 3"
+      assert html =~ "Votación activa"
+      assert html =~ "phx-value-choice=\"1\""
+      assert html =~ "phx-value-choice=\"2\""
+      refute html =~ "phx-value-choice=\"3\""
+      refute html =~ "Votar:"
     end
 
     test "vote results update via PubSub broadcast", %{conn: conn} do
@@ -260,7 +262,7 @@ defmodule EventPulseWeb.EventLiveTest do
 
       assert html =~ "en_directo"
       assert html =~ "Escribe un mensaje"
-      assert html =~ "Votar: 1"
+      assert html =~ "phx-value-choice=\"1\""
 
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
@@ -271,36 +273,57 @@ defmodule EventPulseWeb.EventLiveTest do
       html = render(lv)
       assert html =~ "finalizado"
       refute html =~ "Escribe un mensaje"
-      refute html =~ "Votar: 1"
+      refute html =~ "phx-value-choice=\"1\""
     end
 
-    test "shows Social Feeling result when it is broadcast after close", %{conn: conn} do
+    test "al cerrar el evento se muestra el recap con el total de votos", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
-      {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
-      Phoenix.PubSub.broadcast(
-        EventPulse.PubSub,
-        "events:#{event.id}",
-        {:status_changed, %{event | status: "finalizado"}}
-      )
+      {:ok, poll} =
+        EventPulse.Votes.create_poll(event.id, "¿Cómo valoras el evento?", ["1", "2", "3"])
 
-      Phoenix.PubSub.broadcast(
-        EventPulse.PubSub,
-        "event:#{event.id}",
-        {:social_feeling,
-         %EventPulse.SocialFeeling.Result{
-           event_id: event.id,
-           label: "positivo",
-           score: 0.5,
-           numeric_vote_count: 2,
-           breakdown: %{}
-         }}
-      )
+      agg = :global.whereis_name(EventPulse.Votes.VoteAggregator)
+      assert is_pid(agg)
+      Ecto.Adapters.SQL.Sandbox.allow(EventPulse.Repo, self(), agg)
 
-      html = render(lv)
-      assert html =~ "Social Feeling final"
-      assert html =~ "Positivo"
-      assert html =~ "Recuento agregado"
+      EventPulse.Votes.cast_vote(poll.id, 1, "1")
+      EventPulse.Votes.cast_vote(poll.id, 2, "3")
+      _ = :sys.get_state(agg)
+
+      {:ok, closed_event} = EventPulse.Events.close_event(event)
+
+      {:ok, _lv, html} = live(conn, ~p"/events/#{closed_event.id}")
+
+      assert html =~ "Resumen de votaciones"
+      assert html =~ "¿Cómo valoras el evento?"
+      assert html =~ "Resultados definitivos"
+      refute html =~ "Escribe un mensaje"
+      refute html =~ "Votar:"
+    end
+
+    test "recap muestra total de votos con encuestas persistidas", %{conn: conn} do
+      event = event_fixture(%{status: "finalizado"})
+      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo recap", ["1", "2"])
+
+      EventPulse.Repo.insert!(%EventPulse.Votes.Vote{
+        poll_id: poll.id,
+        user_id: 10,
+        choice: "1",
+        event_id: event.id
+      })
+
+      EventPulse.Repo.insert!(%EventPulse.Votes.Vote{
+        poll_id: poll.id,
+        user_id: 11,
+        choice: "2",
+        event_id: event.id
+      })
+
+      {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
+
+      assert html =~ "Resumen de votaciones"
+      assert html =~ "Demo recap"
+      assert html =~ "Total de votos del evento"
       assert html =~ "2"
     end
   end

@@ -92,7 +92,7 @@ defmodule EventPulseWeb.EventLive.Form do
          |> assign(:editable_poll_forms, editable_poll_forms)
          |> put_flash(
            :error,
-           "La votación debe tener pregunta y al menos dos opciones numéricas."
+           "La votación debe tener pregunta y al menos dos opciones."
          )}
 
       {:error, :cannot_change_options_with_votes} ->

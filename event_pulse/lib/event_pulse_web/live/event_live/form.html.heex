@@ -60,7 +60,7 @@
         >
           <h2 style="font-size:1rem;font-weight:800;margin:0 0 0.35rem;">Votaciones del evento</h2>
           <p style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
-            Mientras el evento está programado puedes editar las votaciones numéricas o añadir nuevas. Las opiniones en texto van al chat.
+            Mientras el evento está programado puedes editar las votaciones o añadir nuevas. Las opciones pueden ser palabras o números. Las opiniones en texto van al chat.
           </p>
 
           <p :if={@editable_poll_forms == []} style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
@@ -108,10 +108,11 @@
                   <input
                     id={"poll-existing-opt-#{epoll.id}-#{index}"}
                     name={"poll_existing[#{epoll.id}][options][#{index}]"}
-                    type="number"
+                    type="text"
                     value={option}
                     class="ep-input"
-                    placeholder={"Número #{index + 1}"}
+                    maxlength="50"
+                    placeholder={"Ej. Sí, Phoenix, Opción #{index + 1}"}
                   />
                 </div>
               </div>
@@ -151,10 +152,11 @@
                 <input
                   id={"poll-new-opt-#{index}"}
                   name={"poll[options][#{index}]"}
-                  type="number"
+                  type="text"
                   value={option}
                   class="ep-input"
-                  placeholder={"Número #{index + 1}"}
+                  maxlength="50"
+                  placeholder={"Ej. Sí, Phoenix, Opción #{index + 1}"}
                 />
               </div>
             </div>
@@ -167,7 +169,7 @@
         >
           <h2 style="font-size:1rem;font-weight:800;margin:0 0 0.35rem;">Votación inicial</h2>
           <p style="color:var(--color-text-muted);font-size:0.9rem;margin:0 0 1rem;">
-            Opcional: crea una primera votación numérica asociada al evento. Las respuestas con texto deben ir al chat.
+            Opcional: crea una primera votación asociada al evento. Las opciones pueden ser palabras, frases cortas o números. Las respuestas de texto libre van al chat.
           </p>
 
           <div class="ep-field">
@@ -204,10 +206,11 @@
               <input
                 id={"poll-option-#{index}"}
                 name={"poll[options][#{index}]"}
-                type="number"
+                type="text"
                 value={option}
                 class="ep-input"
-                placeholder={"Número de la opción #{index + 1}"}
+                maxlength="50"
+                placeholder={"Ej. Sí, Phoenix, Opción #{index + 1}"}
               />
             </div>
           </div>
