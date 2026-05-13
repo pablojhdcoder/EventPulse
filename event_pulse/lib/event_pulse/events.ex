@@ -1,13 +1,17 @@
 defmodule EventPulse.Events do
   @moduledoc """
   The Events context.
+
+  Tras cerrar un evento (`close_event/1`), los efectos secundarios (vaciar buffer Redis
+  de chat) se ejecutan **fuera** de la transacción y de forma **best-effort**: un fallo
+  en Redis se registra en logs y no revierte el cierre en base de datos.
   """
 
   import Ecto.Query, warn: false
+  require Logger
   alias EventPulse.Repo
   alias EventPulse.Events.Event
   alias EventPulse.ChatBuffer
-  alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
   alias EventPulse.Votes.Poll
 
   # Transiciones permitidas vía `update_event_status/2` (alineado con la UI LiveView).
@@ -117,8 +121,7 @@ defmodule EventPulse.Events do
         broadcast_status_changed(updated)
 
         if just_closed? do
-          _ = ChatBuffer.delete_buffer(Integer.to_string(updated.id))
-          SocialFeelingWorker.process_event(updated.id)
+          run_close_side_effects(updated)
         end
 
         {:ok, updated}
@@ -166,20 +169,25 @@ defmodule EventPulse.Events do
   end
 
   defp broadcast_events_catalog_changed do
-    Phoenix.PubSub.broadcast(EventPulse.PubSub, "events:updates", :events_catalog_changed)
+    EventPulse.broadcast("events:updates", :events_catalog_changed)
+  end
+
+  defp run_close_side_effects(%Event{id: id}) do
+    room = Integer.to_string(id)
+
+    case ChatBuffer.delete_buffer(room) do
+      :ok ->
+        :ok
+
+      {:error, reason} ->
+        Logger.warning("events: delete_buffer failed event_id=#{id} reason=#{inspect(reason)}")
+    end
+
+    :ok
   end
 
   defp broadcast_status_changed(%Event{} = event) do
-    Phoenix.PubSub.broadcast(
-      EventPulse.PubSub,
-      "events:#{event.id}",
-      {:status_changed, event}
-    )
-
-    Phoenix.PubSub.broadcast(
-      EventPulse.PubSub,
-      "events:updates",
-      {:status_changed, event}
-    )
+    EventPulse.broadcast("events:#{event.id}", {:status_changed, event})
+    EventPulse.broadcast("events:updates", {:status_changed, event})
   end
 end

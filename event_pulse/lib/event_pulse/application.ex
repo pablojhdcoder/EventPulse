@@ -3,18 +3,18 @@ defmodule EventPulse.Application do
 
   use Application
 
-  @cluster_node_prefix "event_pulse"
+  require Logger
 
+  @cluster_node_prefix "event_pulse"
+  @cluster_host_regex ~r/\A[a-zA-Z0-9._-]+\z/
   @impl true
   def start(_type, _args) do
     front_children = [
       EventPulseWeb.Telemetry,
       {Task.Supervisor, name: EventPulse.TaskSupervisor},
-      EventPulse.Chat.Supervisor,
       EventPulse.Repo,
       {Registry, keys: :unique, name: EventPulse.EventRegistry},
       {DynamicSupervisor, strategy: :one_for_one, name: EventPulse.EventSupervisor},
-      {EventPulse.SocialFeeling.Worker, name: EventPulse.SocialFeeling.Worker},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore}
     ]
 
@@ -68,10 +68,23 @@ defmodule EventPulse.Application do
         |> String.split(",")
         |> Enum.map(&String.trim/1)
         |> Enum.reject(&(&1 == ""))
+        |> Enum.filter(&cluster_peer_host_allowed?/1)
         |> Enum.map(&String.to_atom("#{@cluster_node_prefix}@#{&1}"))
 
       _ ->
         []
+    end
+  end
+
+  defp cluster_peer_host_allowed?(host) do
+    if Regex.match?(@cluster_host_regex, host) do
+      true
+    else
+      Logger.warning(
+        "application: valor CLUSTER_PEER_HOSTS ignorado (host no permitido): #{inspect(host)}"
+      )
+
+      false
     end
   end
 

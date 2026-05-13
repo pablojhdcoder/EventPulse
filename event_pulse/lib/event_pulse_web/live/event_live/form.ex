@@ -1,23 +1,13 @@
 defmodule EventPulseWeb.EventLive.Form do
   use EventPulseWeb, :live_view
 
-  alias EventPulse.Accounts.Auth
   alias EventPulse.Events
   alias EventPulse.Events.Event
   alias EventPulse.Votes
 
   @impl true
-  def mount(params, session, socket) do
-    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
-    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
-    socket = assign(socket, :current_user, current_user)
-
+  def mount(params, _session, socket) do
     cond do
-      is_nil(current_user) ->
-        {:ok,
-         push_navigate(socket, to: ~p"/login")
-         |> put_flash(:error, "Debes iniciar sesión para acceder.")}
-
       !admin?(socket) ->
         {:ok,
          push_navigate(socket, to: ~p"/events")
@@ -100,7 +90,10 @@ defmodule EventPulseWeb.EventLive.Form do
          socket
          |> assign(:poll_form, poll_form)
          |> assign(:editable_poll_forms, editable_poll_forms)
-         |> put_flash(:error, "La votación debe tener pregunta y al menos dos opciones numéricas.")}
+         |> put_flash(
+           :error,
+           "La votación debe tener pregunta y al menos dos opciones."
+         )}
 
       {:error, :cannot_change_options_with_votes} ->
         {:noreply,
@@ -129,7 +122,12 @@ defmodule EventPulseWeb.EventLive.Form do
     end
   end
 
-  defp save_event(%Event{status: "programado", id: id} = event, params, poll_form, editable_poll_forms)
+  defp save_event(
+         %Event{status: "programado", id: id} = event,
+         params,
+         poll_form,
+         editable_poll_forms
+       )
        when is_integer(id) do
     with :ok <- persist_editable_poll_updates(id, editable_poll_forms),
          {:ok, updated} <- Events.update_event(event, params),
@@ -182,7 +180,9 @@ defmodule EventPulseWeb.EventLive.Form do
 
             %{event_id: ^event_id} = poll ->
               case Votes.update_poll(poll, %{question: q, options: trimmed_opts}) do
-                {:ok, _} -> {:cont, :ok}
+                {:ok, _} ->
+                  {:cont, :ok}
+
                 {:error, :cannot_change_options_with_votes} ->
                   {:halt, {:error, :cannot_change_options_with_votes}}
 

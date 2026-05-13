@@ -58,7 +58,7 @@ Al finalizar el desarrollo el repositorio debe contener:
 
   - Instrucciones para compilar, desplegar y  utilizar la aplicación.
 
-  - Documentación de infraestructura OTP, clúster y observabilidad: `doc/infraestructura_cluster.md`
+  - Documentación de infraestructura OTP, clúster y observabilidad: `doc/documentacion_OTP_cluster_observabilidad.md`
 
   - Nota: para ejecutar `mix test` en local debes tener PostgreSQL disponible en `localhost:5432` o definir `DATABASE_URL`. Alternativamente, usa `mix test` que automáticamente levanta PostgreSQL en Docker en el puerto 5433.
 

@@ -6,7 +6,6 @@ defmodule EventPulse.EventsTest do
   alias EventPulse.Events
   alias EventPulse.Events.Event
   alias EventPulse.Repo
-  alias EventPulse.SocialFeeling
   alias EventPulse.Votes
   alias EventPulse.Votes.Poll
 
@@ -166,16 +165,11 @@ defmodule EventPulse.EventsTest do
   end
 
   describe "close_event/1" do
-    test "marca el evento como finalizado y persiste el Social Feeling" do
+    test "marca el evento como finalizado" do
       event = event_fixture()
 
       assert {:ok, %Event{} = closed_event} = Events.close_event(event)
       assert closed_event.status == "finalizado"
-
-      assert eventually(fn ->
-               result = SocialFeeling.get_for_event(event.id)
-               result && is_nil(result.score) && is_nil(result.label) && result.numeric_vote_count == 0
-             end)
     end
 
     test "cierra las votaciones del evento y bloquea votos posteriores" do
@@ -222,17 +216,4 @@ defmodule EventPulse.EventsTest do
       assert {:error, :invalid_transition} = Events.update_event_status(event, "en_directo")
     end
   end
-
-  defp eventually(fun, attempts \\ 10)
-
-  defp eventually(fun, attempts) when attempts > 0 do
-    if fun.() do
-      true
-    else
-      Process.sleep(20)
-      eventually(fun, attempts - 1)
-    end
-  end
-
-  defp eventually(_fun, 0), do: false
 end

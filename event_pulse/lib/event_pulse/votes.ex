@@ -18,13 +18,12 @@ defmodule EventPulse.Votes do
     |> Poll.changeset(%{
       event_id: event_id,
       question: question,
-      options: options,
-      contributes_to_feeling: true
+      options: options
     })
     |> Repo.insert()
     |> case do
       {:ok, poll} ->
-        Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:poll_created, poll})
+        EventPulse.broadcast("event:#{event_id}", {:poll_created, poll})
         {:ok, poll}
 
       error ->
@@ -97,7 +96,7 @@ defmodule EventPulse.Votes do
   end
 
   @doc """
-  Listado serializable para API: todas las encuestas con resultados y si aportan al Social Feeling.
+  Listado serializable para API: todas las encuestas con resultados y recuentos.
   """
   def list_polls_voting_results_for_event(event_id) do
     event_id
@@ -116,7 +115,6 @@ defmodule EventPulse.Votes do
       %{
         poll_id: poll.id,
         question: poll.question,
-        contributes_to_feeling: poll.contributes_to_feeling,
         options: poll.options,
         status: poll.status,
         results: results,
@@ -163,9 +161,9 @@ defmodule EventPulse.Votes do
       {%Poll{}, event_status} when event_status != "en_directo" ->
         {:error, :event_not_live}
 
-      {%Poll{options: options}, _event_status} ->
+      {%Poll{options: options} = poll, _event_status} ->
         if choice in options do
-          VoteAggregator.cast_vote(poll_id, user_id, choice)
+          VoteAggregator.cast_vote_for_poll(poll.id, user_id, choice)
           :ok
         else
           {:error, :invalid_choice}

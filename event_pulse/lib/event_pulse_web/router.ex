@@ -15,10 +15,6 @@ defmodule EventPulseWeb.Router do
     plug EventPulseWeb.Plugs.RequireAuth
   end
 
-  pipeline :api do
-    plug :accepts, ["json"]
-  end
-
   scope "/", EventPulseWeb do
     pipe_through :browser
 
@@ -29,21 +25,17 @@ defmodule EventPulseWeb.Router do
     delete "/logout", AuthController, :logout
   end
 
-  scope "/api", EventPulseWeb do
-    pipe_through :api
-
-    resources "/events", EventController, except: [:new, :edit]
-    put "/events/:id/status", EventController, :update_status
-  end
-
   scope "/", EventPulseWeb do
     pipe_through [:browser, :browser_auth]
 
-    live "/", EventLive.Index, :index
-    live "/events", EventLive.Index, :index
-    live "/events/new", EventLive.Form, :new
-    live "/events/:id/edit", EventLive.Form, :edit
-    live "/events/:id", EventLive.Show, :show
+    live_session :authenticated,
+      on_mount: [{EventPulseWeb.LiveUserAuth, :ensure_authenticated}] do
+      live "/", EventLive.Index, :index
+      live "/events", EventLive.Index, :index
+      live "/events/new", EventLive.Form, :new
+      live "/events/:id/edit", EventLive.Form, :edit
+      live "/events/:id", EventLive.Show, :show
+    end
   end
 
   if Application.compile_env(:event_pulse, :dev_routes) do

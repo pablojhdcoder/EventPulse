@@ -5,35 +5,24 @@ defmodule EventPulseWeb.EventLive.Index do
 
   use EventPulseWeb, :live_view
 
-  alias EventPulse.Accounts.Auth
   alias EventPulse.Events
 
   @impl true
-  def mount(_params, session, socket) do
-    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
-    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
+  def mount(_params, _session, socket) do
+    socket =
+      socket
+      |> assign(:events, Events.list_events())
+      |> assign(:category_filter, "")
 
-    if is_nil(current_user) do
-      {:ok,
-       push_navigate(socket, to: ~p"/login")
-       |> put_flash(:error, "Debes iniciar sesión para acceder.")}
-    else
-      socket =
+    socket =
+      if connected?(socket) do
+        _ = Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:updates")
         socket
-        |> assign(:current_user, current_user)
-        |> assign(:events, Events.list_events())
-        |> assign(:category_filter, "")
+      else
+        socket
+      end
 
-      socket =
-        if connected?(socket) do
-          _ = Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:updates")
-          socket
-        else
-          socket
-        end
-
-      {:ok, socket}
-    end
+    {:ok, socket}
   end
 
   @impl true
@@ -65,16 +54,21 @@ defmodule EventPulseWeb.EventLive.Index do
   def handle_event("delete", %{"id" => id}, socket) do
     if admin?(socket.assigns.current_user) do
       event = Events.get_event!(id)
-      {:ok, _} = Events.delete_event(event)
 
-      events =
-        if socket.assigns.category_filter == "" do
-          Events.list_events()
-        else
-          Events.list_events_by_category(socket.assigns.category_filter)
-        end
+      case Events.delete_event(event) do
+        {:ok, _} ->
+          events =
+            if socket.assigns.category_filter == "" do
+              Events.list_events()
+            else
+              Events.list_events_by_category(socket.assigns.category_filter)
+            end
 
-      {:noreply, assign(socket, events: events)}
+          {:noreply, assign(socket, events: events)}
+
+        {:error, _} ->
+          {:noreply, put_flash(socket, :error, "No se pudo eliminar el evento.")}
+      end
     else
       {:noreply, put_flash(socket, :error, "No autorizado")}
     end

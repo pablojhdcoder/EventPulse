@@ -3,8 +3,8 @@
 # Levantar stack completo: docker compose up -d --build
 #
 # Las migraciones se ejecutan una sola vez en el servicio `migrate` (evita carreras
-# entre web1/web2/web3). Tras el primer arranque, podemos meter
-# los seeds en una réplica (vía RPC al nodo vivo):
+# entre web1/web2/web3). Los seeds se ejecutan en el servicio `seed` (una sola vez
+# por `docker compose up`, tras migrar). Opcionalmente en un nodo ya en marcha:
 #   docker compose exec web1 bin/event_pulse rpc "EventPulse.Release.seed"
 #
 
@@ -29,6 +29,8 @@ x-web-common: &web_common
     redis:
       condition: service_started
     migrate:
+      condition: service_completed_successfully
+    seed:
       condition: service_completed_successfully
   healthcheck:
     test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:4000/ || exit 1"]
@@ -77,6 +79,26 @@ services:
       event_pulse_net:
         aliases:
           - migrate.local
+
+  seed:
+    hostname: seed.local
+    build:
+      <<: *web_build
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      migrate:
+        condition: service_completed_successfully
+    environment:
+      <<: *app_env
+    entrypoint: ["/bin/sh", "-lc", "exec /app/bin/seed"]
+    restart: "no"
+    networks:
+      event_pulse_net:
+        aliases:
+          - seed.local
 
   web1:
     <<: *web_common
