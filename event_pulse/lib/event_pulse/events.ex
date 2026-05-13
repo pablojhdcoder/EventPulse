@@ -3,9 +3,8 @@ defmodule EventPulse.Events do
   The Events context.
 
   Tras cerrar un evento (`close_event/1`), los efectos secundarios (vaciar buffer Redis
-  de chat y disparar el cálculo de Social Feeling) se ejecutan **fuera** de la
-  transacción y de forma **best-effort**: un fallo en Redis o en el worker se
-  registra en logs y no revierte el cierre en base de datos.
+  de chat) se ejecutan **fuera** de la transacción y de forma **best-effort**: un fallo
+  en Redis se registra en logs y no revierte el cierre en base de datos.
   """
 
   import Ecto.Query, warn: false
@@ -13,7 +12,6 @@ defmodule EventPulse.Events do
   alias EventPulse.Repo
   alias EventPulse.Events.Event
   alias EventPulse.ChatBuffer
-  alias EventPulse.SocialFeeling.Worker, as: SocialFeelingWorker
   alias EventPulse.Votes.Poll
 
   # Transiciones permitidas vía `update_event_status/2` (alineado con la UI LiveView).
@@ -183,15 +181,6 @@ defmodule EventPulse.Events do
 
       {:error, reason} ->
         Logger.warning("events: delete_buffer failed event_id=#{id} reason=#{inspect(reason)}")
-    end
-
-    try do
-      SocialFeelingWorker.process_event(id)
-    rescue
-      exception ->
-        Logger.error(
-          "events: social_feeling process_event failed event_id=#{id} error=#{inspect(exception)}"
-        )
     end
 
     :ok
