@@ -45,6 +45,17 @@ defmodule EventPulse.Votes.VoteAggregator do
   end
 
   @doc """
+  Registra un voto cuando ya se sabe que `poll_id` identifica una encuesta (`Poll`).
+
+  Evita una lectura extra a la base de datos en el agregador frente a `cast_vote/3`.
+  """
+  def cast_vote_for_poll(poll_id, user_id, choice) when is_integer(poll_id) do
+    scope = {:poll, poll_id}
+    :telemetry.execute([:event_pulse, :vote, :cast], %{count: 1}, telemetry_meta(scope))
+    GenServer.cast(@name, {:cast_vote, scope, user_id, choice})
+  end
+
+  @doc """
   Registra o actualiza un voto.
 
   Si `id` corresponde a una `Poll`, usa el modelo por encuesta; si no existe esa

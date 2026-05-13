@@ -37,69 +37,60 @@ defmodule EventPulseWeb.EventLive.Show do
 
   @impl true
   def mount(%{"id" => id_str}, session, socket) do
-    current_user = current_user_from_session(session)
+    case Integer.parse(id_str) do
+      {event_id, ""} ->
+        case Events.get_event(event_id) do
+          {:ok, event} ->
+            event_key = Integer.to_string(event_id)
+            polls = open_polls(event_id)
 
-    if is_nil(current_user) do
-      {:ok,
-       push_navigate(socket, to: ~p"/login")
-       |> put_flash(:error, "Debes iniciar sesión para acceder.")}
-    else
-      case Integer.parse(id_str) do
-        {event_id, ""} ->
-          case Events.get_event(event_id) do
-            {:ok, event} ->
-              event_key = Integer.to_string(event_id)
-              polls = open_polls(event_id)
+            demo_user_id =
+              normalize_demo_user_id(
+                Map.get(session, "demo_user_id") || Map.get(session, :demo_user_id)
+              )
 
-              demo_user_id =
-                normalize_demo_user_id(
-                  Map.get(session, "demo_user_id") || Map.get(session, :demo_user_id)
-                )
+            socket =
+              socket
+              |> assign(:event, event)
+              |> assign(:event_key, event_key)
+              |> assign(:polls, polls)
+              |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
+              |> assign(:demo_user_id, demo_user_id)
+              |> assign(:vote_results, vote_results_by_poll(polls))
+              |> assign(:final_poll_rows, final_poll_rows(event))
+              |> assign(:new_poll_form, new_poll_form())
+              |> assign(:draft, "")
+              |> assign(:max_body_length, @max_body_length)
+              |> assign(:valid_transitions, @valid_transitions)
+              |> stream(:messages, [], dom_id: &message_dom_id/1)
 
-              socket =
-                socket
-                |> assign(:event, event)
-                |> assign(:event_key, event_key)
-                |> assign(:polls, polls)
-                |> assign(:social_feeling, SocialFeeling.get_for_event(event_id))
-                |> assign(:current_user, current_user)
-                |> assign(:demo_user_id, demo_user_id)
-                |> assign(:vote_results, vote_results_by_poll(polls))
-                |> assign(:final_poll_rows, final_poll_rows(event))
-                |> assign(:new_poll_form, new_poll_form())
-                |> assign(:draft, "")
-                |> assign(:max_body_length, @max_body_length)
-                |> assign(:valid_transitions, @valid_transitions)
-                |> stream(:messages, [], dom_id: &message_dom_id/1)
+            socket =
+              if connected?(socket) do
+                Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
+                Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
 
-              socket =
-                if connected?(socket) do
-                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "event:#{event_key}")
-                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "events:#{event_id}")
-
-                  for poll <- polls do
-                    Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
-                  end
-
-                  history = EventRoom.recent_messages(event_key)
-                  stream(socket, :messages, history, reset: true)
-                else
-                  socket
+                for poll <- polls do
+                  Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
                 end
 
-              {:ok, socket}
+                history = EventRoom.recent_messages(event_key)
+                stream(socket, :messages, history, reset: true)
+              else
+                socket
+              end
 
-            :error ->
-              {:ok,
-               push_navigate(socket, to: ~p"/")
-               |> put_flash(:error, "Evento no encontrado.")}
-          end
+            {:ok, socket}
 
-        _ ->
-          {:ok,
-           push_navigate(socket, to: ~p"/")
-           |> put_flash(:error, "ID de evento inválido.")}
-      end
+          :error ->
+            {:ok,
+             push_navigate(socket, to: ~p"/")
+             |> put_flash(:error, "Evento no encontrado.")}
+        end
+
+      _ ->
+        {:ok,
+         push_navigate(socket, to: ~p"/")
+         |> put_flash(:error, "ID de evento inválido.")}
     end
   end
 

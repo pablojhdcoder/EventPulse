@@ -6,16 +6,8 @@ defmodule EventPulseWeb.EventLive.Form do
   alias EventPulse.Votes
 
   @impl true
-  def mount(params, session, socket) do
-    current_user = current_user_from_session(session)
-    socket = assign(socket, :current_user, current_user)
-
+  def mount(params, _session, socket) do
     cond do
-      is_nil(current_user) ->
-        {:ok,
-         push_navigate(socket, to: ~p"/login")
-         |> put_flash(:error, "Debes iniciar sesión para acceder.")}
-
       !admin?(socket) ->
         {:ok,
          push_navigate(socket, to: ~p"/events")
