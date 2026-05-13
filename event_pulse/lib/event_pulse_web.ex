@@ -37,8 +37,6 @@ defmodule EventPulseWeb do
     quote do
       use Phoenix.LiveView, layout: {EventPulseWeb.Layouts, :root}
 
-      import EventPulseWeb.EventHelpers
-
       unquote(html_helpers())
     end
   end
@@ -46,8 +44,6 @@ defmodule EventPulseWeb do
   def live_component do
     quote do
       use Phoenix.LiveComponent
-
-      import EventPulseWeb.EventHelpers
 
       unquote(html_helpers())
     end
@@ -59,8 +55,6 @@ defmodule EventPulseWeb do
 
       import Phoenix.Controller,
         only: [get_csrf_token: 0, view_module: 1, view_template: 1]
-
-      import EventPulseWeb.EventHelpers
 
       unquote(html_helpers())
     end
@@ -74,6 +68,7 @@ defmodule EventPulseWeb do
       import Phoenix.HTML.Form
 
       import EventPulseWeb.CoreComponents
+      import EventPulseWeb.EventHelpers
 
       alias Phoenix.LiveView.JS
 

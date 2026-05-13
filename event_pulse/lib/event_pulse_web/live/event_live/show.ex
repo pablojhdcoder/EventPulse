@@ -9,7 +9,8 @@ defmodule EventPulseWeb.EventLive.Show do
 
   Mensajes PubSub:
   - `{:new_message, message}` — chat (`EventPulse.Chat.EventRoom`)
-  - `{:voted, results}` — votos (`VoteAggregator`, tópico `poll:<id>`)
+  - `{:voted, :poll, poll_id, results}` — recuento por encuesta (`VoteAggregator`, tópico `poll:<id>`)
+  - `{:voted, :event, event_id, results}` — flujo legacy por evento sin encuestas abiertas
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
   - `{:social_feeling, result}` — resultado consolidado al cerrar
   - `{:event_room_closed, event_id}` — cierre de sala (worker de Social Feeling; mismo tópico `event:<id>` que el chat)
@@ -17,7 +18,6 @@ defmodule EventPulseWeb.EventLive.Show do
 
   use EventPulseWeb, :live_view
 
-  alias EventPulse.Accounts.Auth
   alias EventPulse.Chat.EventRoom
   alias EventPulse.Events
   alias EventPulse.SocialFeeling
@@ -37,8 +37,7 @@ defmodule EventPulseWeb.EventLive.Show do
 
   @impl true
   def mount(%{"id" => id_str}, session, socket) do
-    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
-    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
+    current_user = current_user_from_session(session)
 
     if is_nil(current_user) do
       {:ok,
@@ -507,6 +506,9 @@ defmodule EventPulseWeb.EventLive.Show do
       is_nil(poll) ->
         {:noreply, put_flash(socket, :error, "No hay votación activa.")}
 
+      poll.status != "open" ->
+        {:noreply, put_flash(socket, :error, "Esta votación está cerrada.")}
+
       true ->
         user_id = socket.assigns.demo_user_id
 
@@ -538,13 +540,13 @@ defmodule EventPulseWeb.EventLive.Show do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
-  def handle_info({:voted, _results}, socket) do
-    polls = open_polls(socket.assigns.event.id)
+  def handle_info({:voted, :poll, poll_id, results}, socket) do
+    vote_results = Map.put(socket.assigns.vote_results, poll_id, results)
+    {:noreply, assign(socket, :vote_results, vote_results)}
+  end
 
-    {:noreply,
-     socket
-     |> assign(:polls, polls)
-     |> assign(:vote_results, vote_results_by_poll(polls))}
+  def handle_info({:voted, :event, _event_id, _results}, socket) do
+    {:noreply, socket}
   end
 
   def handle_info({:poll_created, poll}, socket) do

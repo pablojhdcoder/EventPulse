@@ -183,11 +183,13 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   defp broadcast_results({:poll, poll_id}, scope_votes) do
     results = Enum.frequencies(Map.values(scope_votes))
-    Phoenix.PubSub.broadcast(EventPulse.PubSub, "poll:#{poll_id}", {:voted, results})
+    msg = {:voted, :poll, poll_id, results}
+
+    Phoenix.PubSub.broadcast(EventPulse.PubSub, "poll:#{poll_id}", msg)
 
     case Repo.get(Poll, poll_id) do
       %Poll{event_id: event_id} ->
-        Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:voted, results})
+        Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", msg)
 
       nil ->
         :ok
@@ -196,7 +198,12 @@ defmodule EventPulse.Votes.VoteAggregator do
 
   defp broadcast_results({:event, event_id}, scope_votes) do
     results = Enum.frequencies(Map.values(scope_votes))
-    Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:voted, results})
+
+    Phoenix.PubSub.broadcast(
+      EventPulse.PubSub,
+      "event:#{event_id}",
+      {:voted, :event, event_id, results}
+    )
   end
 
   defp telemetry_meta({:poll, poll_id}), do: %{poll_id: poll_id}

@@ -5,13 +5,11 @@ defmodule EventPulseWeb.EventLive.Index do
 
   use EventPulseWeb, :live_view
 
-  alias EventPulse.Accounts.Auth
   alias EventPulse.Events
 
   @impl true
   def mount(_params, session, socket) do
-    session_uid = Map.get(session, "user_id") || Map.get(session, :user_id)
-    current_user = if session_uid, do: Auth.get_user(session_uid), else: nil
+    current_user = current_user_from_session(session)
 
     if is_nil(current_user) do
       {:ok,

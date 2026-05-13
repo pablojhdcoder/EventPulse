@@ -226,7 +226,7 @@ defmodule EventPulseWeb.EventLiveTest do
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
         "poll:#{poll.id}",
-        {:voted, %{"1" => 3, "2" => 1}}
+        {:voted, :poll, poll.id, %{"1" => 3, "2" => 1}}
       )
 
       html = render(lv)
@@ -239,15 +239,17 @@ defmodule EventPulseWeb.EventLiveTest do
       {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2", "3"])
 
       agg = :global.whereis_name(EventPulse.Votes.VoteAggregator)
+      assert is_pid(agg)
       Ecto.Adapters.SQL.Sandbox.allow(EventPulse.Repo, self(), agg)
 
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
-      Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
+      poll_id = poll.id
+      Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll_id}")
 
       lv |> element("button[phx-value-choice='1']") |> render_click()
 
-      assert_receive {:voted, results}
+      assert_receive {:voted, :poll, ^poll_id, results}
       assert Map.has_key?(results, "1")
     end
 
