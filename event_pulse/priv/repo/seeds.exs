@@ -27,14 +27,25 @@ password = "Admin!1demo"
 directo_options = ["1", "2", "3"]
 
 create_user_once = fn attrs ->
-  case Repo.get_by(User, email: attrs.email) do
+  existing =
+    Repo.one(
+      from u in User,
+        where: u.email == ^attrs.email or u.username == ^attrs.username,
+        limit: 1
+    )
+
+  case existing do
     nil ->
       %User{id: Ecto.UUID.generate()}
       |> User.changeset(attrs)
       |> Repo.insert!()
 
-    user ->
+    %User{} = user ->
+      # Si ya había fila por username u otro email, alinear credenciales demo
+      # (si no, login por participant@… / admin@… falla aunque el seed “pase”).
       user
+      |> User.changeset(attrs)
+      |> Repo.update!()
   end
 end
 
@@ -138,7 +149,7 @@ insert_vote_once.(%{
 
 IO.puts("""
 Seeds cargados (solo 3 eventos):
-  Usuarios (UUID): demo_admin / demo_participant — contraseña: #{password}
+  Usuarios (UUID): admin@demo.eventpulse / participant@demo.eventpulse — contraseña: #{password}
   — "#{event_programado.title}" (programado) id=#{event_programado.id}
   — "#{event_directo.title}" (en_directo) id=#{event_directo.id}
   — "#{event_finalizado.title}" (finalizado) id=#{event_finalizado.id}

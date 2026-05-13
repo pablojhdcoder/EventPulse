@@ -24,7 +24,7 @@ defmodule EventPulse.Votes do
     |> Repo.insert()
     |> case do
       {:ok, poll} ->
-        Phoenix.PubSub.broadcast(EventPulse.PubSub, "event:#{event_id}", {:poll_created, poll})
+        EventPulse.broadcast("event:#{event_id}", {:poll_created, poll})
         {:ok, poll}
 
       error ->
@@ -163,9 +163,9 @@ defmodule EventPulse.Votes do
       {%Poll{}, event_status} when event_status != "en_directo" ->
         {:error, :event_not_live}
 
-      {%Poll{options: options}, _event_status} ->
+      {%Poll{options: options} = poll, _event_status} ->
         if choice in options do
-          VoteAggregator.cast_vote(poll_id, user_id, choice)
+          VoteAggregator.cast_vote_for_poll(poll.id, user_id, choice)
           :ok
         else
           {:error, :invalid_choice}
