@@ -3,6 +3,8 @@ defmodule EventPulseWeb.EventController do
 
   alias EventPulse.Events
   alias EventPulse.Events.Event
+  alias EventPulse.SocialFeeling
+  alias EventPulse.Votes
 
   action_fallback EventPulseWeb.FallbackController
 
@@ -26,7 +28,21 @@ defmodule EventPulseWeb.EventController do
 
   def show(conn, %{"id" => id}) do
     event = Events.get_event!(id)
-    render(conn, :show, event: event)
+
+    assigns =
+      if event.status == "finalizado" do
+        sf = SocialFeeling.get_for_event(event.id)
+
+        [
+          event: event,
+          social_feeling_label: social_feeling_label_json(sf),
+          voting_results: Votes.list_polls_voting_results_for_event(event.id)
+        ]
+      else
+        [event: event]
+      end
+
+    render(conn, :show, assigns)
   end
 
   def update(conn, %{"id" => id, "event" => event_params}) do
@@ -52,4 +68,12 @@ defmodule EventPulseWeb.EventController do
       render(conn, :show, event: event)
     end
   end
+
+  defp social_feeling_label_json(nil), do: nil
+  defp social_feeling_label_json(%EventPulse.SocialFeeling.Result{label: nil}), do: nil
+
+  defp social_feeling_label_json(%EventPulse.SocialFeeling.Result{label: label}),
+    do: SocialFeeling.humanize_label(label)
+
+  defp social_feeling_label_json(_), do: nil
 end

@@ -51,7 +51,8 @@ defmodule EventPulseWeb.ConnCase do
 
     {:ok, user} =
       Auth.register(%{
-        "username" => "t#{suffix}",
+        # Mínimo 3 caracteres; `suffix` puede ser un entero pequeño.
+        "username" => "tu#{suffix}",
         "email" => "e#{suffix}@example.com",
         "password" => "TestP1!xx",
         "role" => role

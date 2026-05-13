@@ -11,12 +11,14 @@ defmodule EventPulseWeb.EventJSON do
   @doc """
   Renders a single event.
   """
-  def show(%{event: event}) do
-    %{data: data(event)}
+  def show(%{event: event} = assigns) do
+    %{data: data(event, assigns)}
   end
 
-  defp data(%Event{} = event) do
-    %{
+  defp data(%Event{} = event), do: data(event, %{})
+
+  defp data(%Event{} = event, assigns) do
+    base = %{
       id: event.id,
       title: event.title,
       description: event.description,
@@ -25,5 +27,13 @@ defmodule EventPulseWeb.EventJSON do
       starts_at: event.starts_at,
       ends_at: event.ends_at
     }
+
+    if event.status == "finalizado" do
+      base
+      |> Map.put(:social_feeling_label, Map.get(assigns, :social_feeling_label))
+      |> Map.put(:voting_results, Map.get(assigns, :voting_results, []))
+    else
+      base
+    end
   end
 end

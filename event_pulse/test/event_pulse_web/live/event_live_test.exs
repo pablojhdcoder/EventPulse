@@ -58,6 +58,38 @@ defmodule EventPulseWeb.EventLiveTest do
     end
   end
 
+  describe "EventLive.Form — edición (admin)" do
+    setup %{conn: conn} do
+      {:ok, conn: register_and_log_in_user(conn, role: "admin")}
+    end
+
+    test "precarga campos al editar (categoría en lista y categoría legacy)", %{conn: conn} do
+      event =
+        event_fixture(%{
+          title: "Evento edicion demo",
+          description: "Texto descripcion guardada.",
+          category: "tecnologia"
+        })
+
+      {:ok, lv, _} = live(conn, ~p"/events/#{event.id}/edit")
+
+      assert render(element(lv, "#event_title")) =~ "Evento edicion demo"
+
+      assert render(element(lv, "#event_description")) =~ "Texto descripcion guardada."
+
+      assert render(element(lv, "#event-category")) =~ ~s(value="tecnologia")
+
+      assert render(element(lv, "#event_starts_at")) =~ ~s(value="2026-04-25T07:50")
+
+      event_legacy = event_fixture(%{category: "legacy_cat", title: "Segundo evento"})
+
+      {:ok, lv2, _} = live(conn, ~p"/events/#{event_legacy.id}/edit")
+
+      assert render(element(lv2, "#event-category")) =~ ~s(value="legacy_cat")
+      assert render(element(lv2, "#event-category")) =~ "Legacy Cat"
+    end
+  end
+
   # ---------------------------------------------------------------------------
   # EventLive.Show — basic rendering
   # ---------------------------------------------------------------------------
@@ -176,35 +208,35 @@ defmodule EventPulseWeb.EventLiveTest do
   describe "EventLive.Show - votes" do
     test "renders the active poll question and options", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
-      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "¿Qué opción prefieres?", ["A", "B"])
+      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "¿Qué opción prefieres?", ["1", "2"])
 
       {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
 
       assert html =~ "¿Qué opción prefieres?"
-      assert html =~ "Votar: A"
-      assert html =~ "Votar: B"
-      refute html =~ "Votar: SÍ"
+      assert html =~ "Votar: 1"
+      assert html =~ "Votar: 2"
+      refute html =~ "Votar: 3"
     end
 
     test "vote results update via PubSub broadcast", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
-      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO", "Abstención"])
+      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2", "3"])
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
         "poll:#{poll.id}",
-        {:voted, %{"SÍ" => 3, "NO" => 1}}
+        {:voted, %{"1" => 3, "2" => 1}}
       )
 
       html = render(lv)
-      assert html =~ "SÍ"
+      assert html =~ "1"
       assert html =~ "3"
     end
 
     test "clicking vote button casts a vote", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
-      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO", "Abstención"])
+      {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2", "3"])
 
       agg = :global.whereis_name(EventPulse.Votes.VoteAggregator)
       Ecto.Adapters.SQL.Sandbox.allow(EventPulse.Repo, self(), agg)
@@ -213,20 +245,20 @@ defmodule EventPulseWeb.EventLiveTest do
 
       Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{poll.id}")
 
-      lv |> element("button[phx-value-choice='SÍ']") |> render_click()
+      lv |> element("button[phx-value-choice='1']") |> render_click()
 
       assert_receive {:voted, results}
-      assert Map.has_key?(results, "SÍ")
+      assert Map.has_key?(results, "1")
     end
 
     test "status_changed PubSub message updates event assign", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
-      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["SÍ", "NO"])
+      {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2"])
       {:ok, lv, html} = live(conn, ~p"/events/#{event.id}")
 
       assert html =~ "en_directo"
       assert html =~ "Escribe un mensaje"
-      assert html =~ "Votar: SÍ"
+      assert html =~ "Votar: 1"
 
       Phoenix.PubSub.broadcast(
         EventPulse.PubSub,
@@ -237,7 +269,7 @@ defmodule EventPulseWeb.EventLiveTest do
       html = render(lv)
       assert html =~ "finalizado"
       refute html =~ "Escribe un mensaje"
-      refute html =~ "Votar: SÍ"
+      refute html =~ "Votar: 1"
     end
 
     test "shows Social Feeling result when it is broadcast after close", %{conn: conn} do
@@ -258,15 +290,15 @@ defmodule EventPulseWeb.EventLiveTest do
            event_id: event.id,
            label: "positivo",
            score: 0.5,
-           total_votes: 2,
+           numeric_vote_count: 2,
            breakdown: %{}
          }}
       )
 
       html = render(lv)
       assert html =~ "Social Feeling final"
-      assert html =~ "positivo"
-      assert html =~ "0.5"
+      assert html =~ "Positivo"
+      assert html =~ "Recuento agregado"
       assert html =~ "2"
     end
   end

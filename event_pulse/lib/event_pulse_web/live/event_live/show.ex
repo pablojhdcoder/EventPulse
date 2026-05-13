@@ -243,20 +243,24 @@ defmodule EventPulseWeb.EventLive.Show do
         <section :if={@event.status == "finalizado"} style="background:#fff;border-radius:0.5rem;padding:1.25rem;box-shadow:0 1px 3px rgba(0,0,0,.08);">
           <h2 style="font-size:1rem;font-weight:600;margin:0 0 1rem;">Social Feeling final</h2>
 
-          <div :if={@social_feeling}>
-            <p style="font-size:0.875rem;color:#64748b;margin:0 0 0.5rem;">Resultado consolidado del evento.</p>
+          <div :if={@social_feeling != nil && @social_feeling.label != nil}>
+            <p style="font-size:0.875rem;color:#64748b;margin:0 0 0.5rem;">Resultado consolidado del evento a partir de las votaciones numéricas.</p>
             <p style="margin:0 0 0.5rem;">
-              <span style="font-weight:600;">Etiqueta:</span> {@social_feeling.label}
-            </p>
-            <p style="margin:0 0 0.5rem;">
-              <span style="font-weight:600;">Score:</span> {@social_feeling.score}
+              <span style="font-weight:600;">Etiqueta:</span> {SocialFeeling.humanize_label(@social_feeling.label)}
             </p>
             <p style="margin:0;">
-              <span style="font-weight:600;">Votos totales:</span> {@social_feeling.total_votes}
+              <span style="font-weight:600;">Recuento agregado de votos numéricos:</span> {@social_feeling.numeric_vote_count}
             </p>
           </div>
 
-          <p :if={!@social_feeling} style="color:#94a3b8;font-size:0.875rem;margin:0;">
+          <p
+            :if={@social_feeling != nil && is_nil(@social_feeling.label)}
+            style="color:#64748b;font-size:0.875rem;margin:0;"
+          >
+            No hay indicador de Social Feeling para este evento porque no hay votos en votaciones numéricas.
+          </p>
+
+          <p :if={@social_feeling == nil} style="color:#94a3b8;font-size:0.875rem;margin:0;">
             Calculando resultado final…
           </p>
         </section>
@@ -354,7 +358,7 @@ defmodule EventPulseWeb.EventLive.Show do
           name="poll[question]"
           type="text"
           value={@form.question}
-          placeholder="Ej. ¿Qué opción prefieres?"
+          placeholder="Ej. Valora el evento del 1 al 5"
           style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;"
         />
       </div>
@@ -379,9 +383,9 @@ defmodule EventPulseWeb.EventLive.Show do
         <input
           id={"new-poll-option-#{index}"}
           name={"poll[options][#{index}]"}
-          type="text"
+          type="number"
           value={option}
-          placeholder={"Texto de la opción #{index + 1}"}
+          placeholder={"Número de la opción #{index + 1}"}
           style="width:100%;border:1px solid #cbd5e1;border-radius:0.375rem;padding:0.45rem 0.6rem;font-size:0.875rem;"
         />
       </div>
