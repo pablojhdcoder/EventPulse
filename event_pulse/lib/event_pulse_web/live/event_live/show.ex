@@ -431,7 +431,7 @@ defmodule EventPulseWeb.EventLive.Show do
     if admin?(socket.assigns.current_user) do
       case Events.update_event_status(socket.assigns.event, new_status) do
         {:ok, updated} ->
-          {:noreply, assign(socket, :event, updated)}
+          {:noreply, apply_event_status_update(socket, updated)}
 
         {:error, :invalid_transition} ->
           {:noreply,
@@ -572,6 +572,18 @@ defmodule EventPulseWeb.EventLive.Show do
   end
 
   def handle_info({:status_changed, updated_event}, socket) do
+    {:noreply, apply_event_status_update(socket, updated_event)}
+  end
+
+  def handle_info(_msg, socket) do
+    {:noreply, socket}
+  end
+
+  # ---------------------------------------------------------------------------
+  # Helpers
+  # ---------------------------------------------------------------------------
+
+  defp apply_event_status_update(socket, updated_event) do
     old_poll_ids = Enum.map(socket.assigns.polls, & &1.id)
     event_id = updated_event.id
     polls = open_polls(event_id)
@@ -585,33 +597,22 @@ defmodule EventPulseWeb.EventLive.Show do
       |> assign(:vote_results, vote_results)
       |> assign(:final_poll_rows, final_poll_rows(updated_event))
 
-    socket =
-      if connected?(socket) do
-        new_poll_ids = Enum.map(polls, & &1.id)
+    if connected?(socket) do
+      new_poll_ids = Enum.map(polls, & &1.id)
 
-        for old_poll_id <- old_poll_ids -- new_poll_ids do
-          Phoenix.PubSub.unsubscribe(EventPulse.PubSub, "poll:#{old_poll_id}")
-        end
-
-        for new_poll_id <- new_poll_ids -- old_poll_ids do
-          Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{new_poll_id}")
-        end
-
-        socket
-      else
-        socket
+      for old_poll_id <- old_poll_ids -- new_poll_ids do
+        Phoenix.PubSub.unsubscribe(EventPulse.PubSub, "poll:#{old_poll_id}")
       end
 
-    {:noreply, socket}
-  end
+      for new_poll_id <- new_poll_ids -- old_poll_ids do
+        Phoenix.PubSub.subscribe(EventPulse.PubSub, "poll:#{new_poll_id}")
+      end
 
-  def handle_info(_msg, socket) do
-    {:noreply, socket}
+      socket
+    else
+      socket
+    end
   end
-
-  # ---------------------------------------------------------------------------
-  # Helpers
-  # ---------------------------------------------------------------------------
 
   defp open_polls(event_id) do
     event_id
