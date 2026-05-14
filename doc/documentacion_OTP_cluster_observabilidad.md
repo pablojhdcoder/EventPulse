@@ -70,27 +70,6 @@ En desarrollo, podemos ver un panel con datos de la aplicación en vivo usando L
 - Muestra estadísticas básicas de la app
 - Nos ayuda a entender cómo se comporta el sistema mientras probamos
 
-## 4. Cómo desplegar con Docker
-
-La aplicación está lista para correr en Docker. La idea es sencilla:
-
-1. construir la imagen
-2. arrancar el servicio
-3. usar DNS para que los nodos se descubran entre sí
-
-### Pasos básicos
-
-```bash
-cd event_pulse
-docker build -t event_pulse_app .
-```
-
-Luego, para usar dos nodos en paralelo:
-
-```bash
-docker compose up --build --scale app=2
-```
-
 ### Variables importantes
 
 - `PHX_SERVER=true` para que Phoenix arranque el servidor web
@@ -99,7 +78,7 @@ docker compose up --build --scale app=2
 - `DNS_CLUSTER_QUERY=app` para activar el descubrimiento de nodos
 - `ERL_COOKIE=event_pulse_cookie` para que los nodos se puedan ver entre sí
 
-## 5. Cómo funciona el flujo de votos y chat
+## 4. Cómo funciona el flujo de votos y chat
 
 ### Votos
 
@@ -119,7 +98,7 @@ Las salas de chat funcionan como procesos supervisados.
 - si una sala falla, se reinicia sola
 - el sistema mantiene mensajes recientes en memoria para eficiencia
 
-## 6. Operación diaria simple
+## 5. Operación diaria simple
 
 Para cuidar la infraestructura, hay que verificar algunos puntos:
 
@@ -130,7 +109,7 @@ Para cuidar la infraestructura, hay que verificar algunos puntos:
 
 Si ves que los nodos no se descubren entre sí, revisa `DNS_CLUSTER_QUERY` y `ERL_COOKIE`.
 
-## 7. Por qué esta infraestructura es una buena base
+## 6. Por qué esta infraestructura es una buena base
 
 Esta configuración es sencilla pero potente:
 
