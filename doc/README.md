@@ -11,6 +11,7 @@ Este índice centraliza la documentación vigente del proyecto.
 - `documentacion_OTP_cluster_observabilidad.md`: observabilidad del clúster OTP y buenas prácticas de inspección.
 - `../event_pulse/README.md`: **única fuente** de instrucciones para arrancar la app (local, Docker, tests) y configuración operativa básica.
 - `../proyecto.md`: integrantes del equipo.
+- `../presentacion.pdf`: material audiovisual adicional para la presentacion
 
 ## Diagramas C4 (PNG)
 
