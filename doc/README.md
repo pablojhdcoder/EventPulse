@@ -5,8 +5,8 @@ Este índice centraliza la documentación vigente del proyecto.
 ## Documentos disponibles
 
 - `adr.md`: registro de decisiones de arquitectura (ADR) alineado con la implementación vigente de EventPulse.
-- `propuesta.md`: propuesta inicial del proyecto (alcance, actores, RF/RNF y vistas C4).
-- `arquitectura-distribuida-eventpulse.md`: arquitectura técnica vigente para despliegue distribuido, Redis, Director y límites de consistencia.
+- `propuesta.md`: propuesta del proyecto **incluye RF/RNF detallados** y vistas C4.
+- `arquitectura.md`: diseño de arquitectura (módulos OTP/LiveView, despliegue distribuido, Redis, Director, persistencia y límites de consistencia).
 - `c4-contexto-contenedores.md`: vistas C4 **contexto** y **contenedores** con figuras PNG y guía de lectura.
 - `documentacion_OTP_cluster_observabilidad.md`: observabilidad del clúster OTP y buenas prácticas de inspección.
 - `../event_pulse/README.md`: **única fuente** de instrucciones para arrancar la app (local, Docker, tests) y configuración operativa básica.
