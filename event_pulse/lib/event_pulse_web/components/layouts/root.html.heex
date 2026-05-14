@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="es" class="[scrollbar-gutter:stable]">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <title><%= assigns[:page_title] || "EventPulse" %></title>
+    <style>
+      :root {
+        --color-primary: #4f46e5;
+        --color-primary-hover: #4338ca;
+        --color-secondary: #0f172a;
+        --color-background: #f8fafc;
+        --color-surface: #ffffff;
+        --color-surface-muted: #f1f5f9;
+        --color-border: #dbe3ef;
+        --color-text: #0f172a;
+        --color-text-muted: #64748b;
+        --color-error: #dc2626;
+        --color-error-surface: #fef2f2;
+        --color-success: #16a34a;
+        --color-success-surface: #ecfdf5;
+        --radius-sm: 0.5rem;
+        --radius-md: 0.75rem;
+        --radius-lg: 1rem;
+        --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
+        --shadow-md: 0 12px 32px rgba(15, 23, 42, 0.10);
+        --shadow-focus: 0 0 0 4px rgba(79, 70, 229, 0.14);
+      }
+
+      *, *::before, *::after { box-sizing: border-box; }
+
+      body {
+        font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+        margin: 0;
+        min-height: 100vh;
+        background:
+          radial-gradient(circle at top left, rgba(79, 70, 229, 0.10), transparent 28rem),
+          var(--color-background);
+        color: var(--color-text);
+        line-height: 1.5;
+      }
+
+      a { color: var(--color-primary); text-decoration: none; }
+      a:hover { text-decoration: underline; }
+
+      .ep-app-header {
+        background: rgba(255, 255, 255, 0.88);
+        border-bottom: 1px solid var(--color-border);
+        backdrop-filter: blur(12px);
+        padding: 0.85rem 1.5rem;
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+        flex-wrap: wrap;
+        position: sticky;
+        top: 0;
+        z-index: 10;
+      }
+
+      .ep-header-inner {
+        width: min(100% - 2rem, 960px);
+        margin: 0 auto;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .ep-header-actions {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .ep-header-user {
+        font-size: 0.875rem;
+        color: var(--color-text-muted);
+        font-weight: 600;
+      }
+
+      .ep-header-logout-form {
+        margin: 0;
+      }
+
+      .ep-brand {
+        color: var(--color-secondary);
+        font-weight: 800;
+        font-size: 1.15rem;
+        letter-spacing: -0.03em;
+      }
+
+      .ep-brand:hover { text-decoration: none; }
+
+      .ep-app-main {
+        width: min(100% - 2rem, 960px);
+        margin: 1.75rem auto 2.5rem;
+      }
+
+      .ep-card {
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-lg);
+        box-shadow: var(--shadow-sm);
+        padding: 1.5rem;
+      }
+
+      .ep-card--elevated { box-shadow: var(--shadow-md); }
+
+      .ep-stack { display: flex; flex-direction: column; gap: 1rem; }
+
+      .ep-button {
+        appearance: none;
+        border: 1px solid transparent;
+        border-radius: var(--radius-md);
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        font: inherit;
+        font-size: 0.95rem;
+        font-weight: 700;
+        min-height: 2.75rem;
+        padding: 0.65rem 1rem;
+        transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, color 160ms ease, transform 160ms ease;
+      }
+
+      .ep-button:hover { transform: translateY(-1px); text-decoration: none; }
+      .ep-button:focus-visible { outline: none; box-shadow: var(--shadow-focus); }
+      .ep-button:disabled { cursor: not-allowed; opacity: 0.6; transform: none; }
+      .ep-button--full { width: 100%; }
+      .ep-button--primary { background: var(--color-primary); color: #fff; }
+      .ep-button--primary:hover { background: var(--color-primary-hover); }
+      .ep-button--secondary { background: var(--color-secondary); color: #fff; }
+      .ep-button--outline { background: transparent; border-color: var(--color-border); color: var(--color-secondary); }
+      .ep-button--outline:hover { border-color: var(--color-primary); color: var(--color-primary); }
+
+      .ep-button--sm {
+        min-height: 2.25rem;
+        padding: 0.4rem 0.85rem;
+        font-size: 0.8125rem;
+      }
+
+      .ep-field { display: flex; flex-direction: column; gap: 0.45rem; }
+      .ep-label { color: var(--color-secondary); font-size: 0.875rem; font-weight: 700; }
+
+      .ep-input {
+        width: 100%;
+        background: var(--color-surface);
+        border: 1px solid var(--color-border);
+        border-radius: var(--radius-md);
+        color: var(--color-text);
+        font: inherit;
+        font-size: 0.95rem;
+        min-height: 2.75rem;
+        padding: 0.65rem 0.85rem;
+        transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+      }
+
+      .ep-input::placeholder { color: #94a3b8; }
+      .ep-input:focus { border-color: var(--color-primary); box-shadow: var(--shadow-focus); outline: none; }
+      .ep-input--error { border-color: var(--color-error); background: var(--color-error-surface); }
+      textarea.ep-input { min-height: 7rem; resize: vertical; }
+
+      .ep-field-error {
+        color: var(--color-error);
+        font-size: 0.825rem;
+        margin: 0.15rem 0 0;
+      }
+
+      .ep-alert {
+        border-radius: var(--radius-md);
+        border: 1px solid var(--color-border);
+        font-size: 0.9rem;
+        padding: 0.75rem 0.9rem;
+      }
+
+      .ep-alert--error {
+        background: var(--color-error-surface);
+        border-color: #fecaca;
+        color: #991b1b;
+      }
+
+      .ep-alert--info {
+        background: var(--color-success-surface);
+        border-color: #bbf7d0;
+        color: #166534;
+      }
+
+      .ep-auth-shell {
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 2rem 1rem;
+      }
+
+      .ep-auth-card {
+        width: min(100%, 28rem);
+        padding: clamp(1.5rem, 4vw, 2rem);
+      }
+
+      .ep-auth-title {
+        font-size: clamp(1.7rem, 4vw, 2rem);
+        letter-spacing: -0.04em;
+        line-height: 1.1;
+        margin: 0;
+        text-align: center;
+      }
+
+      .ep-auth-subtitle {
+        color: var(--color-text-muted);
+        font-size: 0.95rem;
+        margin: 0.65rem 0 1.5rem;
+        text-align: center;
+      }
+
+      .ep-auth-footer {
+        color: var(--color-text-muted);
+        font-size: 0.9rem;
+        margin: 1.25rem 0 0;
+        text-align: center;
+      }
+
+      .ep-form-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      @media (max-width: 640px) {
+        .ep-app-main { width: min(100% - 1rem, 960px); margin-top: 1rem; }
+        .ep-card { padding: 1rem; }
+        .ep-form-actions .ep-button { width: 100%; }
+      }
+    </style>
+  </head>
+  <body>
+    {@inner_content}
+    <%!-- Phoenix and LiveView JS served from hex deps via Plug.Static in endpoint.ex --%>
+    <script src="/assets/phoenix.min.js"></script>
+    <script src="/assets/phoenix_live_view.min.js"></script>
+    <script>
+      (function() {
+        // Initialise the LiveView socket once the files have loaded.
+        var PHX = window.Phoenix;
+        var LV  = window.LiveView;
+        if (PHX && LV) {
+          var hooks = {
+            AutoScrollChat: {
+              mounted: function() {
+                this.el.scrollTop = this.el.scrollHeight;
+              },
+              updated: function() {
+                this.el.scrollTop = this.el.scrollHeight;
+              }
+            }
+          };
+
+          var csrfToken = document.querySelector("meta[name='csrf-token']");
+          var liveSocket = new LV.LiveSocket("/live", PHX.Socket, {
+            longPollFallbackMs: 2500,
+            hooks: hooks,
+            params: { _csrf_token: csrfToken ? csrfToken.getAttribute("content") : "" }
+          });
+          liveSocket.connect();
+          window.liveSocket = liveSocket;
+        }
+      })();
+    </script>
+  </body>
+</html>

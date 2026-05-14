@@ -1,0 +1,22 @@
+<header class="ep-app-header">
+  <div class="ep-header-inner">
+    <a href={~p"/"} class="ep-brand">
+      EventPulse
+    </a>
+    <div :if={@current_user} class="ep-header-actions">
+      <span class="ep-header-user">{@current_user.username}</span>
+      <form action={~p"/logout"} method="post" class="ep-header-logout-form">
+        <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+        <input type="hidden" name="_method" value="delete" />
+        <button type="submit" class="ep-button ep-button--outline ep-button--sm">
+          Cerrar sesión
+        </button>
+      </form>
+    </div>
+  </div>
+</header>
+
+<main class="ep-app-main">
+  <.flash_group flash={@flash} />
+  {render_slot(@inner_block)}
+</main>
