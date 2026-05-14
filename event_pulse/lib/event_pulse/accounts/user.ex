@@ -8,29 +8,28 @@ defmodule EventPulse.Accounts.User do
   use Ecto.Schema
   import Ecto.Changeset
 
-  # GEneramos el id (UUID) en Ecto automáticamente, no en la base de datos. SE genera automáticamente durante
-  # la inserccion del usaurio con Repo.insert()
+  # UUID generado por Ecto al insertar (no por la base de datos).
   @primary_key {:id, :binary_id, autogenerate: true}
-  # CUando otros schemas referencien a User, sus claves foráneas también serán UUID
+  # Claves foráneas hacia `User` también usan UUID.
   @foreign_key_type :binary_id
 
   schema "users" do
     field :username, :string
     field :email, :string
     field :password_hash, :string
-    # Campo temporal. A la bd llega la contraseña hasheada
+    # Virtual: en BD solo persiste el hash.
     field :password, :string, virtual: true
     field :role, :string, default: "participant"
 
     timestamps()
 
-    # Agrega campos inserted_at (fecha creación cuenta) y updated_at (fecha última modificación) automáticamente.
+    # `inserted_at` y `updated_at` automáticos.
   end
 
   # Registrar usuario nuevo
   def changeset(user, attrs) do
     user
-    # Permitir pasar role para registrar admin en tests
+    # Permitir `role` en tests (p. ej. admin).
     |> cast(attrs, [:username, :email, :password, :role])
     |> validate_required([:username, :email, :password])
 

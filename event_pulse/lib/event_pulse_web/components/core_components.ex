@@ -1,9 +1,8 @@
 defmodule EventPulseWeb.CoreComponents do
   @moduledoc """
-  Provides core UI components.
+  Componentes de interfaz reutilizables (Phoenix.Component).
 
-  The components in this module use Phoenix.Component and are
-  imported into every LiveView and HTML module automatically via `EventPulseWeb.html_helpers`.
+  Se importan automáticamente en LiveView y módulos HTML vía `EventPulseWeb.html_helpers/0`.
   """
 
   use Phoenix.Component
@@ -13,18 +12,18 @@ defmodule EventPulseWeb.CoreComponents do
   alias Phoenix.LiveView.JS
 
   @doc """
-  Renders flash notices.
+  Muestra un mensaje flash (info o error).
 
-  ## Examples
+  ## Ejemplos
 
       <.flash kind={:info} flash={@flash} />
-      <.flash kind={:error} title={gettext("Error!")} />
+      <.flash kind={:error} title={gettext("¡Error!")} flash={@flash} />
   """
-  attr :id, :string, doc: "the optional id of flash container"
-  attr :flash, :map, default: %{}, doc: "the map of flash messages to display"
+  attr :id, :string, doc: "id opcional del contenedor del flash"
+  attr :flash, :map, default: %{}, doc: "mapa de mensajes flash a mostrar"
   attr :title, :string, default: nil
-  attr :kind, :atom, values: [:info, :error], doc: "used for styling and flash lookup"
-  attr :rest, :global, doc: "the arbitrary HTML attributes to add to the flash container"
+  attr :kind, :atom, values: [:info, :error], doc: "tipo para estilo y clave en el flash"
+  attr :rest, :global, doc: "atributos HTML adicionales del contenedor"
 
   def flash(assigns) do
     assigns = assign_new(assigns, :id, fn -> "flash-#{assigns.kind}" end)
@@ -56,23 +55,22 @@ defmodule EventPulseWeb.CoreComponents do
       "position:fixed;top:0.75rem;right:0.75rem;z-index:50;width:20rem;border-radius:0.5rem;padding:0.75rem 2rem 0.75rem 0.75rem;background:#fff1f2;color:#881337;border:1px solid #fda4af;"
 
   @doc """
-  Shows the flash group with standard styling.
-  Called only from `Layouts` module.
+  Agrupa los flashes estándar (info y error). Solo debe usarse desde `Layouts`.
   """
-  attr :flash, :map, required: true, doc: "the map of flash messages"
-  attr :id, :string, default: "flash-group", doc: "the optional id of flash container"
+  attr :flash, :map, required: true, doc: "mapa de mensajes flash"
+  attr :id, :string, default: "flash-group", doc: "id opcional del contenedor"
 
   def flash_group(assigns) do
     ~H"""
     <div id={@id}>
-      <.flash kind={:info} title={gettext("Success!")} flash={@flash} />
-      <.flash kind={:error} title={gettext("Error!")} flash={@flash} />
+      <.flash kind={:info} title={gettext("¡Correcto!")} flash={@flash} />
+      <.flash kind={:error} title={gettext("¡Error!")} flash={@flash} />
     </div>
     """
   end
 
   @doc """
-  Renders a button.
+  Botón con variantes de estilo.
   """
   attr :type, :string, default: "button"
   attr :variant, :string, default: "primary", values: ["primary", "secondary", "outline"]
@@ -97,7 +95,7 @@ defmodule EventPulseWeb.CoreComponents do
   end
 
   @doc """
-  Renders a reusable card container.
+  Contenedor tipo tarjeta.
   """
   attr :class, :string, default: nil
   attr :rest, :global
@@ -112,7 +110,7 @@ defmodule EventPulseWeb.CoreComponents do
   end
 
   @doc """
-  Renders an inline alert for form-level feedback.
+  Alerta en línea para mensajes a nivel de formulario.
   """
   attr :kind, :atom, default: :info, values: [:info, :error]
   attr :class, :string, default: nil
@@ -128,19 +126,19 @@ defmodule EventPulseWeb.CoreComponents do
   end
 
   @doc """
-  Renders an input with label and error messages.
+  Campo de formulario con etiqueta y errores.
   """
   attr :id, :any, default: nil
   attr :name, :any
   attr :label, :string, default: nil
   attr :value, :any, default: nil
   attr :type, :string, default: "text"
-  attr :field, Phoenix.HTML.FormField, doc: "a form field struct, e.g. @form[:email]"
+  attr :field, Phoenix.HTML.FormField, doc: "struct de campo, p. ej. @form[:email]"
   attr :errors, :list, default: []
-  attr :checked, :boolean, doc: "the checked flag for checkbox inputs"
-  attr :prompt, :string, default: nil, doc: "the prompt for select inputs"
-  attr :options, :list, doc: "the options to pass to Phoenix.HTML.Form.options_for_select/2"
-  attr :multiple, :boolean, default: false, doc: "the multiple flag for select inputs"
+  attr :checked, :boolean, doc: "valor `checked` para casillas"
+  attr :prompt, :string, default: nil, doc: "texto inicial para `<select>`"
+  attr :options, :list, doc: "opciones para `Phoenix.HTML.Form.options_for_select/2`"
+  attr :multiple, :boolean, default: false, doc: "atributo `multiple` en `<select>`"
   attr :class, :string, default: nil
 
   attr :rest, :global,
@@ -199,7 +197,7 @@ defmodule EventPulseWeb.CoreComponents do
   end
 
   @doc """
-  Renders an icon using hero-icons.
+  Icono Heroicons (nombre con prefijo `hero-`).
   """
   attr :name, :string, required: true
   attr :class, :string, default: nil
@@ -243,12 +241,12 @@ defmodule EventPulseWeb.CoreComponents do
       rescue
         e ->
           IO.warn("""
-          the :#{key} assign in the `translate_error/1` function expects a
-          temporary assign, but was given: #{inspect(value)}.
+          en `translate_error/1`, la clave :#{key} esperaba un valor interpolable,
+          pero se recibió: #{inspect(value)}.
 
-          Modules defining LiveViews should call `on_mount` with the relevant assigns.
+          Las LiveViews deberían exponer los assigns necesarios en `on_mount`.
 
-          Original exception: #{Exception.message(e)}
+          Excepción original: #{Exception.message(e)}
           """)
 
           acc

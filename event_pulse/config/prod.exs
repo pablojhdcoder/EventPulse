@@ -2,14 +2,13 @@ import Config
 
 config :event_pulse, EventPulseWeb.Endpoint, force_ssl: false
 
-# Configure Swoosh API Client
+# Cliente HTTP de Swoosh
 config :swoosh, api_client: Swoosh.ApiClient.Req
 
-# Disable Swoosh Local Memory Storage
+# Sin almacenamiento local de Swoosh en memoria
 config :swoosh, local: false
 
-# Do not print debug messages in production
+# Nivel de log en producción
 config :logger, level: :info
 
-# Runtime production configuration, including reading
-# of environment variables, is done on config/runtime.exs.
+# La configuración en runtime (variables de entorno, secretos) está en `config/runtime.exs`.

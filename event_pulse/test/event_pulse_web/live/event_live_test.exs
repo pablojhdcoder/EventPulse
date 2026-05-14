@@ -13,8 +13,8 @@ defmodule EventPulseWeb.EventLiveTest do
   # EventLive.Index
   # ---------------------------------------------------------------------------
 
-  describe "EventLive.Index" do
-    test "renders the event list page", %{conn: conn} do
+  describe "Listado de eventos (EventLive.Index)" do
+    test "muestra la página de listado de eventos", %{conn: conn} do
       event = event_fixture(%{title: "Evento test"})
       {:ok, _lv, html} = live(conn, ~p"/")
 
@@ -22,12 +22,12 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ event.category
     end
 
-    test "shows empty state when no events", %{conn: conn} do
+    test "muestra estado vacío si no hay eventos", %{conn: conn} do
       {:ok, _lv, html} = live(conn, ~p"/")
       assert html =~ "No hay eventos registrados."
     end
 
-    test "shows status badge for each event", %{conn: conn} do
+    test "muestra la insignia de estado en cada evento", %{conn: conn} do
       event_fixture(%{status: "en_directo", title: "Live"})
       event_fixture(%{status: "programado", title: "Next"})
 
@@ -94,8 +94,8 @@ defmodule EventPulseWeb.EventLiveTest do
   # EventLive.Show — basic rendering
   # ---------------------------------------------------------------------------
 
-  describe "EventLive.Show - rendering" do
-    test "renders event details", %{conn: conn} do
+  describe "EventLive.Show — renderizado" do
+    test "muestra el detalle del evento", %{conn: conn} do
       event = event_fixture(%{title: "Charla Phoenix", description: "LiveView demo"})
       {:ok, _lv, html} = live(conn, ~p"/events/#{event.id}")
 
@@ -104,11 +104,11 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ event.category
     end
 
-    test "redirects to / when event does not exist", %{conn: conn} do
+    test "redirige a / si el evento no existe", %{conn: conn} do
       {:error, {:live_redirect, %{to: "/"}}} = live(conn, ~p"/events/999999999")
     end
 
-    test "shows chat form only for live events", %{conn: conn} do
+    test "solo en directo muestra el formulario de chat", %{conn: conn} do
       live_event = event_fixture(%{status: "en_directo", title: "En vivo"})
       prog_event = event_fixture(%{status: "programado", title: "Programado"})
 
@@ -142,8 +142,8 @@ defmodule EventPulseWeb.EventLiveTest do
   # EventLive.Show — chat
   # ---------------------------------------------------------------------------
 
-  describe "EventLive.Show - chat" do
-    test "receive a message via PubSub and it appears in the view", %{conn: conn} do
+  describe "EventLive.Show — chat" do
+    test "recibe un mensaje por PubSub y aparece en la vista", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
@@ -157,7 +157,7 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ "alice"
     end
 
-    test "submitting the chat form broadcasts a message", %{conn: conn} do
+    test "al enviar el formulario de chat se difunde el mensaje", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       key = Integer.to_string(event.id)
 
@@ -172,7 +172,7 @@ defmodule EventPulseWeb.EventLiveTest do
       assert_receive {:new_message, %{body: "test message from form"}}
     end
 
-    test "empty message is rejected and shows flash error", %{conn: conn} do
+    test "mensaje vacío se rechaza y muestra flash de error", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
 
@@ -184,7 +184,7 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ "no puede estar vacío" or html =~ "vacío"
     end
 
-    test "history is loaded on mount for connected socket", %{conn: conn} do
+    test "al conectar se carga el historial de chat", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       key = Integer.to_string(event.id)
 
@@ -205,8 +205,8 @@ defmodule EventPulseWeb.EventLiveTest do
   # EventLive.Show — votes
   # ---------------------------------------------------------------------------
 
-  describe "EventLive.Show - votes" do
-    test "renders the active poll question and options", %{conn: conn} do
+  describe "EventLive.Show — votos" do
+    test "muestra la pregunta y opciones de la encuesta activa", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "¿Qué opción prefieres?", ["1", "2"])
 
@@ -220,7 +220,7 @@ defmodule EventPulseWeb.EventLiveTest do
       refute html =~ "Votar:"
     end
 
-    test "vote results update via PubSub broadcast", %{conn: conn} do
+    test "los resultados se actualizan con broadcast PubSub", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2", "3"])
       {:ok, lv, _html} = live(conn, ~p"/events/#{event.id}")
@@ -236,7 +236,7 @@ defmodule EventPulseWeb.EventLiveTest do
       assert html =~ "3"
     end
 
-    test "clicking vote button casts a vote", %{conn: conn} do
+    test "al pulsar votar se registra el voto", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2", "3"])
 
@@ -255,7 +255,7 @@ defmodule EventPulseWeb.EventLiveTest do
       assert Map.has_key?(results, "1")
     end
 
-    test "status_changed PubSub message updates event assign", %{conn: conn} do
+    test "PubSub {:status_changed, …} actualiza el assign del evento", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
       {:ok, _poll} = EventPulse.Votes.create_poll(event.id, "Demo", ["1", "2"])
       {:ok, lv, html} = live(conn, ~p"/events/#{event.id}")
@@ -276,7 +276,7 @@ defmodule EventPulseWeb.EventLiveTest do
       refute html =~ "phx-value-choice=\"1\""
     end
 
-    test "al cerrar el evento se muestra el recap con el total de votos", %{conn: conn} do
+    test "al cerrar el evento se muestra el resumen con el total de votos", %{conn: conn} do
       event = event_fixture(%{status: "en_directo"})
 
       {:ok, poll} =
@@ -301,7 +301,7 @@ defmodule EventPulseWeb.EventLiveTest do
       refute html =~ "Votar:"
     end
 
-    test "recap muestra total de votos con encuestas persistidas", %{conn: conn} do
+    test "el resumen muestra el total de votos con encuestas persistidas", %{conn: conn} do
       event = event_fixture(%{status: "finalizado"})
       {:ok, poll} = EventPulse.Votes.create_poll(event.id, "Demo recap", ["1", "2"])
 

@@ -1,18 +1,11 @@
 defmodule EventPulseWeb.ConnCase do
   @moduledoc """
-  This module defines the test case to be used by
-  tests that require setting up a connection.
+  Caso de prueba para tests que necesitan una `conn` HTTP.
 
-  Such tests rely on `Phoenix.ConnTest` and also
-  import other functionality to make it easier
-  to build common data structures and query the data layer.
-
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use EventPulseWeb.ConnCase, async: true`, although
-  this option is not recommended for other databases.
+  Usa `Phoenix.ConnTest` e importa utilidades para construir datos y consultar capas.
+  Si el test toca la base de datos, se activa el *sandbox* SQL y los cambios se revierten
+  al terminar cada test. Con PostgreSQL puedes usar `use EventPulseWeb.ConnCase, async: true`
+  en algunos casos; no es recomendable en otros motores.
   """
 
   use ExUnit.CaseTemplate
@@ -21,12 +14,11 @@ defmodule EventPulseWeb.ConnCase do
 
   using do
     quote do
-      # The default endpoint for testing
+      # Endpoint por defecto en tests
       @endpoint EventPulseWeb.Endpoint
 
       use EventPulseWeb, :verified_routes
 
-      # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
       import Phoenix.LiveViewTest

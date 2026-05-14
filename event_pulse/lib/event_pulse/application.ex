@@ -13,8 +13,6 @@ defmodule EventPulse.Application do
       EventPulseWeb.Telemetry,
       {Task.Supervisor, name: EventPulse.TaskSupervisor},
       EventPulse.Repo,
-      {Registry, keys: :unique, name: EventPulse.EventRegistry},
-      {DynamicSupervisor, strategy: :one_for_one, name: EventPulse.EventSupervisor},
       {DNSCluster, query: Application.get_env(:event_pulse, :dns_cluster_query) || :ignore}
     ]
 
@@ -96,8 +94,7 @@ defmodule EventPulse.Application do
     System.get_env("START_VOTE_AGGREGATOR", "true") != "false"
   end
 
-  # Tell Phoenix to update the endpoint configuration
-  # whenever the application is updated.
+  # Phoenix: reaplicar cambios de configuración del endpoint al recargar la app.
   @impl true
   def config_change(changed, _new, removed) do
     EventPulseWeb.Endpoint.config_change(changed, removed)

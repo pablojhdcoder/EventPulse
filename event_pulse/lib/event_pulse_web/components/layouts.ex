@@ -1,9 +1,9 @@
 defmodule EventPulseWeb.Layouts do
   @moduledoc """
-  Provides layout components.
+  Componentes de diseño (layouts).
 
-  The `app/1` component is the main app layout used by all LiveViews.
-  LiveView templates must begin with `<Layouts.app flash={@flash} current_user={@current_user}>`.
+  El componente `app/1` es el layout principal de la aplicación para las LiveViews.
+  Las plantillas LiveView deben empezar con `<Layouts.app flash={@flash} current_user={@current_user}>`.
   """
 
   use EventPulseWeb, :html

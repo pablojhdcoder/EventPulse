@@ -9,7 +9,7 @@ defmodule EventPulse.EventsTest do
   alias EventPulse.Votes
   alias EventPulse.Votes.Poll
 
-  describe "changeset/2 - validaciones de campos" do
+  describe "Event.changeset/2 — validaciones de campos" do
     test "changeset válido con datos correctos" do
       attrs = %{
         title: "Evento de prueba",
@@ -100,12 +100,12 @@ defmodule EventPulse.EventsTest do
                errors_on(changeset)
     end
 
-    test "valid_statuses devuelve los tres estados" do
+    test "valid_statuses incluye los tres estados" do
       assert Event.valid_statuses() == ["programado", "en_directo", "finalizado"]
     end
   end
 
-  describe "get_event/1" do
+  describe "Evento — consulta por id (get_event/1)" do
     test "devuelve el evento cuando existe" do
       event = event_fixture()
       assert {:ok, got} = Events.get_event(event.id)
@@ -117,8 +117,8 @@ defmodule EventPulse.EventsTest do
     end
   end
 
-  describe "list_events_filtered/2" do
-    test "sin filtros lista todos ordenados por starts_at" do
+  describe "Evento — listado filtrado (list_events_filtered/2)" do
+    test "sin filtros lista todos ordenados por fecha de inicio" do
       e1 =
         event_fixture(%{
           title: "primero",
@@ -164,7 +164,7 @@ defmodule EventPulse.EventsTest do
     end
   end
 
-  describe "close_event/1" do
+  describe "Evento — cierre (close_event/1)" do
     test "marca el evento como finalizado" do
       event = event_fixture()
 

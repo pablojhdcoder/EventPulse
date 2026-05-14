@@ -1,7 +1,6 @@
 defmodule EventPulse.Release do
   @moduledoc """
-  Used for executing DB release tasks when run in production without Mix
-  installed.
+  Tareas de release de base de datos en producción sin Mix instalado en el nodo.
   """
   @app :event_pulse
 

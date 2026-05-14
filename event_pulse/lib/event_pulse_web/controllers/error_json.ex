@@ -1,21 +1,21 @@
 defmodule EventPulseWeb.ErrorJSON do
   @moduledoc """
-  This module is invoked by your endpoint in case of errors on JSON requests.
+  Respuestas JSON de error ante fallos en peticiones JSON (configuradas en el endpoint).
 
-  See config/config.exs.
+  Véase `config/config.exs`.
   """
 
-  # If you want to customize a particular status code,
-  # you may add your own clauses, such as:
+  # Para personalizar un código concreto, añade cláusulas, por ejemplo:
   #
   # def render("500.json", _assigns) do
-  #   %{errors: %{detail: "Internal Server Error"}}
+  #   %{errors: %{detail: "Error interno del servidor"}}
   # end
 
-  # By default, Phoenix returns the status message from
-  # the template name. For example, "404.json" becomes
-  # "Not Found".
   def render(template, _assigns) do
-    %{errors: %{detail: Phoenix.Controller.status_message_from_template(template)}}
+    %{errors: %{detail: json_error_detail(template)}}
   end
+
+  defp json_error_detail("404.json"), do: "No encontrado"
+  defp json_error_detail("500.json"), do: "Error interno del servidor"
+  defp json_error_detail(other), do: Phoenix.Controller.status_message_from_template(other)
 end

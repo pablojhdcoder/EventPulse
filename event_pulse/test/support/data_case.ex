@@ -1,17 +1,12 @@
 defmodule EventPulse.DataCase do
   @moduledoc """
-  This module defines the setup for tests requiring
-  access to the application's data layer.
+  Caso de prueba para tests que acceden a la capa de datos.
 
-  You may define functions here to be used as helpers in
-  your tests.
+  Puedes definir aquí funciones auxiliares para los tests.
 
-  Finally, if the test case interacts with the database,
-  we enable the SQL sandbox, so changes done to the database
-  are reverted at the end of every test. If you are using
-  PostgreSQL, you can even run database tests asynchronously
-  by setting `use EventPulse.DataCase, async: true`, although
-  this option is not recommended for other databases.
+  Si el test usa la base de datos, se activa el *sandbox* SQL y los cambios se revierten
+  al terminar cada test. Con PostgreSQL puedes usar `use EventPulse.DataCase, async: true`
+  en algunos casos; no es recomendable en otros motores.
   """
 
   use ExUnit.CaseTemplate
@@ -33,7 +28,7 @@ defmodule EventPulse.DataCase do
   end
 
   @doc """
-  Sets up the sandbox based on the test tags.
+  Arranca el *sandbox* según las etiquetas del test (`async: true/false`).
   """
   def setup_sandbox(tags) do
     pid = Ecto.Adapters.SQL.Sandbox.start_owner!(EventPulse.Repo, shared: not tags[:async])
@@ -41,11 +36,11 @@ defmodule EventPulse.DataCase do
   end
 
   @doc """
-  A helper that transforms changeset errors into a map of messages.
+  Convierte errores del changeset en un mapa de mensajes por campo.
 
-      assert {:error, changeset} = Accounts.create_user(%{password: "short"})
-      assert "password is too short" in errors_on(changeset).password
-      assert %{password: ["password is too short"]} = errors_on(changeset)
+      assert {:error, changeset} = Accounts.create_user(%{password: "corta"})
+      assert "es demasiado corto" in errors_on(changeset).password
+      assert %{password: ["es demasiado corto"]} = errors_on(changeset)
 
   """
   def errors_on(changeset) do

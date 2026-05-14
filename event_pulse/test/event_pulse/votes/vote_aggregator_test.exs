@@ -187,7 +187,7 @@ defmodule EventPulse.Votes.VoteAggregatorTest do
       assert results == %{"No" => 1}
     end
 
-    test "cast_vote via Votes.cast_vote acepta opciones texto", %{aggregator: aggregator} do
+    test "Votes.cast_vote acepta opciones de texto", %{aggregator: aggregator} do
       {:ok, event} =
         Repo.insert(%EventPulse.Events.Event{
           title: "Evento texto",

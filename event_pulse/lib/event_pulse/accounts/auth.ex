@@ -3,52 +3,47 @@ defmodule EventPulse.Accounts.Auth do
   alias EventPulse.Accounts.User
 
   @moduledoc """
-  Módulo encargado de manejar la lógica de autenticación y gestión de usuarios en la aplicación
-    (registro, login, permisos, etc). Este módulo actúa como una capa de abstracción entre los controladores y la base de datos, proporcionando funciones que los controladores pueden llamar para realizar operaciones relacionadas con los usuarios sin tener que preocuparse por los detalles de la implementación.
-  Contiene funciones para:
-  - Registrar nuevos usuarios (register)
-  - Autenticar usuarios existentes (login)
-  - Verificar roles y permisos (admin?, participant?, can_create_event?)
-  - Actualizar información de usuario (update_user, update_password)
-  - Borrar usuarios (delete_user)
+  Autenticación y gestión de usuarios: registro, login, roles y operaciones sobre el perfil.
+
+  Actúa entre controladores/LiveViews y `Repo`, para que la capa web no duplique lógica de persistencia.
+
+  Funciones principales:
+  - `register/1` — alta de usuario
+  - `login/2` — inicio de sesión
+  - `admin?/1`, `participant?/1`, `can_create_event?/1` — comprobaciones de rol
+  - `update_user/2`, `update_password/2` — actualización de datos
+  - `delete_user/1` — baja
   """
 
   @roles_can_create_event ["participant", "admin"]
 
-  # Función para registrar un nuevo usuario
+  # Ejemplo de attrs: %{"username" => "eva", "email" => "eva@mail.com", "password" => "HoLa!145"}
   def register(attrs) do
-    # ejemplo de attrs: username: "eva", email: "evarendo@mail.com", password: "HoLa!145"
     %User{}
-    # aplicamos las validacions del esquema user a los atributos
+    # Validaciones del esquema `User`
     |> User.changeset(attrs)
     |> Repo.insert()
   end
 
-  # Función para obtener un usuario por su ID
+  # Obtiene un usuario por id (UUID)
   def get_user(id) do
     Repo.get(User, id)
   end
 
-  # Función para obtener un usuario por su email
+  # Busca por email (`Repo.get_by/2`).
   def get_user_by_email(email) do
     Repo.get_by(User, email: email)
-    # Usa Repo.get_by para buscar el usuari por el campo email en la tabla User.
   end
 
-  # Función para autenticar a un usuario con email y contraseña
+  # Autenticación por email y contraseña (comparación segura con el hash).
   def login(email, password) do
     case get_user_by_email(email) do
-      # Si no encuentra el usuario
       nil ->
         Pbkdf2.no_user_verify()
-
-        # Usamos pbkdf2.no_user_verify() para simular el tiempo que tomaría verificar una contraseña, evitando así ataques de timing.
         {:error, :invalid_credentials}
 
-      # Si se encuentra el usuario
       user ->
         if Pbkdf2.verify_pass(password, user.password_hash) do
-          # pbkdf2.verify_pass compara la contraseña proporcionada con el hash almacenado en la base de datos. Si coinciden, devuelve true.
           {:ok, user}
         else
           {:error, :invalid_credentials}
@@ -56,69 +51,58 @@ defmodule EventPulse.Accounts.Auth do
     end
   end
 
-  # Funciones para verificar roles y permisos
   def admin?(user), do: user.role == "admin"
   def participant?(user), do: user.role == "participant"
   def can_create_event?(user), do: user.role in @roles_can_create_event
 
-  # Función para actualizar el email y/o username de un usuario
   def update_user(user, attrs) do
     user
     |> User.update_changeset(attrs)
     |> Repo.update()
   end
 
-  # Función para actualizar la contraseña de un usuario
   def update_password(user, attrs) do
     user
     |> User.password_changeset(attrs)
     |> Repo.update()
   end
 
-  # Función para borrar un usuario
   def delete_user(user) do
     Repo.delete(user)
   end
 end
 
 #######################################################################################
-# GUÍA DE PRUEBAS PARA EL MÓDULO AUTH EN IEX
+# Guía rápida para probar `Auth` en IEx
 #
-# Sigue estos pasos en la terminal para verificar el funcionamiento del sistema:
-#
-# 1. Preparación:
+# 1. Arranque:
 #    $ cd event_pulse
-#    $ sudo service postgresql start
 #    $ iex -S mix
 #
-# 2. Definir datos de prueba:
+# 2. Datos de prueba:
 #    datos = %{username: "eva", email: "evarendo@mail.com", password: "HoLa!145"}
 #
-# 3. Registro (Devuelve {:ok, user}):
+# 3. Registro:
 #    {:ok, usuario_reg} = EventPulse.Accounts.Auth.register(datos)
 #
-# 4. Login Correcto (Necesario para cargar el ID/UUID real de la DB):
+# 4. Login correcto:
 #    {:ok, eva} = EventPulse.Accounts.Auth.login("evarendo@mail.com", "HoLa!145")
 #
+# 5. Login fallido (debe devolver {:error, :invalid_credentials}):
+#    EventPulse.Accounts.Auth.login("evarendo@mail.com", "clave_mala")
 #
-# 5. Login Fallido (Verifica seguridad):
-#    EventPulse.Accounts.Auth.login("evarendo@mail.com", "password_incorrecta")
-#    # Debería devolver: {:error, :invalid_credentials}
-#
-# 6. Verificar Roles/Permisos:
+# 6. Permisos:
 #    EventPulse.Accounts.Auth.can_create_event?(eva)
-#    # Debería devolver: true
 #
-# 7. Actualizar Usuario (Update):
+# 7. Actualizar perfil:
 #    {:ok, user_editado} = EventPulse.Accounts.Auth.update_user(eva, %{username: "eva_pro"})
 #
-# 8. Actualizar Contraseña:
+# 8. Cambiar contraseña:
 #    {:ok, user_final} = EventPulse.Accounts.Auth.update_password(user_editado, %{password: "NewPass!456"})
 #
-# 9. Borrar y Limpiar:
+# 9. Borrar usuario:
 #    EventPulse.Accounts.Auth.delete_user(user_final)
 #
-# 10. Verificación Final (Debe ser nil):
+# 10. Comprobar borrado (debe ser nil):
 #     EventPulse.Accounts.Auth.get_user_by_email("evarendo@mail.com")
-#    # Debería devolver: nil
 #######################################################################################

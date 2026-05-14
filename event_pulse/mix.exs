@@ -20,9 +20,9 @@ defmodule EventPulse.MixProject do
     ]
   end
 
-  # Configuration for the OTP application.
+  # Configuración de la aplicación OTP.
   #
-  # Type `mix help compile.app` for more information.
+  # Consulta `mix help compile.app` para más información.
   def application do
     [
       mod: {EventPulse.Application, []},
@@ -36,13 +36,13 @@ defmodule EventPulse.MixProject do
     ]
   end
 
-  # Specifies which paths to compile per environment.
+  # Rutas compiladas según el entorno (`test` incluye `test/support`).
   defp elixirc_paths(:test), do: ["lib", "test/support"]
   defp elixirc_paths(_), do: ["lib"]
 
-  # Specifies your project dependencies.
+  # Dependencias del proyecto.
   #
-  # Type `mix help deps` for examples and options.
+  # Consulta `mix help deps` para ejemplos y opciones.
   defp deps do
     [
       {:phoenix, "~> 1.8.5"},
@@ -66,12 +66,12 @@ defmodule EventPulse.MixProject do
     ]
   end
 
-  # Aliases are shortcuts or tasks specific to the current project.
-  # For example, to install project dependencies and perform other setup tasks, run:
+  # Alias de Mix: atajos para tareas habituales del proyecto.
+  # Por ejemplo, para instalar dependencias y preparar la base de datos:
   #
   #     $ mix setup
   #
-  # See the documentation for `Mix` for more info on aliases.
+  # Consulta la documentación de `Mix` para más detalle sobre los alias.
   defp aliases do
     [
       setup: ["deps.get", "ecto.setup"],

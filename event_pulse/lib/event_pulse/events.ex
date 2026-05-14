@@ -1,10 +1,10 @@
 defmodule EventPulse.Events do
   @moduledoc """
-  The Events context.
+  Contexto de dominio para eventos (CRUD, estados y cierre).
 
   Tras cerrar un evento (`close_event/1`), los efectos secundarios (vaciar buffer Redis
-  de chat) se ejecutan **fuera** de la transacción y de forma **best-effort**: un fallo
-  en Redis se registra en logs y no revierte el cierre en base de datos.
+  de chat, aviso PubSub de sala) se ejecutan **fuera** de la transacción y de forma
+  **best-effort**: un fallo en Redis se registra en logs y no revierte el cierre en BD.
   """
 
   import Ecto.Query, warn: false
@@ -14,13 +14,20 @@ defmodule EventPulse.Events do
   alias EventPulse.ChatBuffer
   alias EventPulse.Votes.Poll
 
-  # Transiciones permitidas vía `update_event_status/2` (alineado con la UI LiveView).
-  # `close_event/1` sigue pudiendo finalizar desde otros estados si se invoca directamente.
+  # Transiciones permitidas vía `update_event_status/2`; la UI reutiliza el mismo mapa
+  # con `valid_status_transitions/0`. `close_event/1` puede finalizar desde otros estados
+  # si se invoca directamente.
   @status_transitions %{
     "programado" => ["en_directo"],
     "en_directo" => ["finalizado"],
     "finalizado" => []
   }
+
+  @doc """
+  Transiciones de estado permitidas (`programado` → `en_directo` → `finalizado`).
+  Misma regla que la UI LiveView (`EventPulseWeb.EventLive.Show`).
+  """
+  def valid_status_transitions, do: @status_transitions
 
   def list_events do
     list_events_filtered(nil, nil)
@@ -182,6 +189,9 @@ defmodule EventPulse.Events do
       {:error, reason} ->
         Logger.warning("events: delete_buffer failed event_id=#{id} reason=#{inspect(reason)}")
     end
+
+    # Mismo tópico `event:<id>` que el chat (`EventPulseWeb.EventLive.Show`).
+    EventPulse.broadcast("event:#{room}", {:event_room_closed, id})
 
     :ok
   end

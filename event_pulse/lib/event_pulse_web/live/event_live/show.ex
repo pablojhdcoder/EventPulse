@@ -12,7 +12,7 @@ defmodule EventPulseWeb.EventLive.Show do
   - `{:voted, :poll, poll_id, results}` — recuento por encuesta (`VoteAggregator`, tópico `poll:<id>`)
   - `{:voted, :event, event_id, results}` — flujo legacy por evento sin encuestas abiertas
   - `{:status_changed, event}` — cambio de estado (`EventPulse.Events`)
-  - `{:event_room_closed, event_id}` — cierre de sala (mismo tópico `event:<id>` que el chat)
+  - `{:event_room_closed, event_id}` — cierre de evento (`EventPulse.Events.close_event/1`, mismo tópico `event:<id>` que el chat)
   """
 
   use EventPulseWeb, :live_view
@@ -23,11 +23,6 @@ defmodule EventPulseWeb.EventLive.Show do
   alias EventPulse.Votes.VoteAggregator
 
   @max_body_length Application.compile_env(:event_pulse, :chat_max_body_length, 500)
-  @valid_transitions %{
-    "programado" => ["en_directo"],
-    "en_directo" => ["finalizado"],
-    "finalizado" => []
-  }
 
   # ---------------------------------------------------------------------------
   # Mount
@@ -60,7 +55,7 @@ defmodule EventPulseWeb.EventLive.Show do
               |> assign(:new_poll_form, new_poll_form())
               |> assign(:draft, "")
               |> assign(:max_body_length, @max_body_length)
-              |> assign(:valid_transitions, @valid_transitions)
+              |> assign(:valid_transitions, Events.valid_status_transitions())
               |> stream(:messages, [], dom_id: &message_dom_id/1)
 
             socket =

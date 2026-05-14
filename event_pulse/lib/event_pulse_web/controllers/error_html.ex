@@ -1,15 +1,15 @@
 defmodule EventPulseWeb.ErrorHTML do
   @moduledoc """
-  Renders HTML error pages (404, 500, etc.).
+  Páginas HTML de error (404, 500, etc.).
   """
   use EventPulseWeb, :html
 
   def render("404.html", _assigns) do
-    "Not Found"
+    "No encontrado"
   end
 
   def render("500.html", _assigns) do
-    "Internal Server Error"
+    "Error interno del servidor"
   end
 
   def render(template, _assigns) do

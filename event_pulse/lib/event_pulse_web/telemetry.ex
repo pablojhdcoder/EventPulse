@@ -9,8 +9,8 @@ defmodule EventPulseWeb.Telemetry do
   @impl true
   def init(_arg) do
     children = [
-      # Telemetry poller will execute the given period measurements
-      # every 10_000ms. Learn more here: https://hexdocs.pm/telemetry_metrics
+      # El *poller* ejecuta las mediciones periódicas cada 10_000 ms.
+      # Más información: https://hexdocs.pm/telemetry_metrics
       {:telemetry_poller, measurements: periodic_measurements(), period: 10_000},
       {Telemetry.Metrics.ConsoleReporter, metrics: metrics()}
     ]
@@ -20,7 +20,7 @@ defmodule EventPulseWeb.Telemetry do
 
   def metrics do
     [
-      # Phoenix Metrics
+      # Métricas de Phoenix
       summary("phoenix.endpoint.start.system_time",
         unit: {:native, :millisecond}
       ),
@@ -51,35 +51,34 @@ defmodule EventPulseWeb.Telemetry do
         unit: {:native, :millisecond}
       ),
 
-      # EventPulse custom metrics
+      # Métricas propias de EventPulse
       counter("event_pulse.vote.cast.count", tags: [:event_id]),
       counter("event_pulse.vote.persist.count", tags: [:event_id]),
       counter("event_pulse.chat.message.stored", tags: [:event_id]),
 
-      # Database Metrics
+      # Métricas de base de datos (Ecto)
       summary("event_pulse.repo.query.total_time",
         unit: {:native, :millisecond},
-        description: "The sum of the other measurements"
+        description: "Suma del resto de mediciones de la consulta"
       ),
       summary("event_pulse.repo.query.decode_time",
         unit: {:native, :millisecond},
-        description: "The time spent decoding the data received from the database"
+        description: "Tiempo decodificando la respuesta de la base de datos"
       ),
       summary("event_pulse.repo.query.query_time",
         unit: {:native, :millisecond},
-        description: "The time spent executing the query"
+        description: "Tiempo ejecutando la consulta SQL"
       ),
       summary("event_pulse.repo.query.queue_time",
         unit: {:native, :millisecond},
-        description: "The time spent waiting for a database connection"
+        description: "Tiempo esperando conexión del pool"
       ),
       summary("event_pulse.repo.query.idle_time",
         unit: {:native, :millisecond},
-        description:
-          "The time the connection spent waiting before being checked out for the query"
+        description: "Tiempo en que la conexión estuvo inactiva antes de usarse en la consulta"
       ),
 
-      # VM Metrics
+      # Métricas de la máquina virtual
       summary("vm.memory.total", unit: {:byte, :kilobyte}),
       summary("vm.total_run_queue_lengths.total"),
       summary("vm.total_run_queue_lengths.cpu"),
@@ -89,8 +88,8 @@ defmodule EventPulseWeb.Telemetry do
 
   defp periodic_measurements do
     [
-      # A module, function and arguments to be invoked periodically.
-      # This function must call :telemetry.execute/3 and a metric must be added above.
+      # Módulo, función y argumentos a invocar de forma periódica.
+      # La función debe llamar a `:telemetry.execute/3` y existir la métrica arriba.
       # {EventPulseWeb, :count_users, []}
     ]
   end

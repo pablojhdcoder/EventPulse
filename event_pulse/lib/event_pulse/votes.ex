@@ -10,10 +10,8 @@ defmodule EventPulse.Votes do
 
   # --- Gestión de encuestas, Polls ---
 
-  @doc "Crea una votación para un evento"
-  def create_poll(event_id, question, options, opts \\ []) do
-    _opts = opts
-
+  @doc "Crea una votación para un evento."
+  def create_poll(event_id, question, options) do
     %Poll{}
     |> Poll.changeset(%{
       event_id: event_id,
@@ -31,7 +29,7 @@ defmodule EventPulse.Votes do
     end
   end
 
-  @doc "Obtiene todas las encuestas asociadas a un id de evento"
+  @doc "Obtiene todas las encuestas asociadas a un id de evento."
   def list_polls(event_id) do
     Repo.all(from p in Poll, where: p.event_id == ^event_id)
   end
@@ -95,43 +93,7 @@ defmodule EventPulse.Votes do
     end)
   end
 
-  @doc """
-  Listado serializable para API: todas las encuestas con resultados y recuentos.
-  """
-  def list_polls_voting_results_for_event(event_id) do
-    event_id
-    |> list_polls()
-    |> Enum.sort_by(& &1.inserted_at, DateTime)
-    |> Enum.map(fn poll ->
-      results = poll_vote_counts(poll.id)
-      total = results |> Map.values() |> Enum.sum()
-      percentages = Map.new(results, fn {k, v} -> {k, vote_pct(v, total)} end)
-
-      ranked_options =
-        results
-        |> Enum.sort_by(fn {choice, c} -> {-c, choice} end)
-        |> Enum.map(fn {choice, _} -> choice end)
-
-      %{
-        poll_id: poll.id,
-        question: poll.question,
-        options: poll.options,
-        status: poll.status,
-        results: results,
-        total_votes: total,
-        percentages: percentages,
-        ranked_options: ranked_options
-      }
-    end)
-  end
-
-  defp vote_pct(_count, 0), do: 0.0
-
-  defp vote_pct(count, total) when total > 0 do
-    Float.round(count * 100.0 / total, 2)
-  end
-
-  @doc "Cambia el estado de una encuesta a 'closed' para impedir nuevos votos"
+  @doc "Cambia el estado de una encuesta a 'closed' para impedir nuevos votos."
   def close_poll(poll_id) do
     case Repo.get(Poll, poll_id) do
       nil ->
@@ -171,27 +133,9 @@ defmodule EventPulse.Votes do
     end
   end
 
-  @doc "Obtiene el estado actual de los votos para una encuesta específica"
+  @doc "Obtiene el estado actual de los votos para una encuesta específica."
   def get_results(poll_id) do
     VoteAggregator.get_results(poll_id)
-  end
-
-  @doc """
-  Obtiene los resultados de todas las votaciones de un evento (mapa por poll con
-  recuento en tiempo real vía `VoteAggregator`).
-  """
-  def get_event_results(event_id) do
-    list_polls(event_id)
-    |> Enum.map(fn poll ->
-      {poll.id,
-       %{
-         question: poll.question,
-         options: poll.options,
-         status: poll.status,
-         results: VoteAggregator.get_results(poll.id)
-       }}
-    end)
-    |> Map.new()
   end
 
   defp get_poll_with_event_status(poll_id) do

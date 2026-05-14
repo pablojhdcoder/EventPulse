@@ -1,10 +1,9 @@
 import Config
 
-# Configure your database
+# Base de datos de tests
 #
-# The MIX_TEST_PARTITION environment variable can be used
-# to provide built-in test partitioning in CI environment.
-# Run `mix help test` for more information.
+# La variable `MIX_TEST_PARTITION` permite particionar tests en CI.
+# Consulta `mix help test` para más información.
 
 database_url =
   System.get_env("DATABASE_URL") ||
@@ -15,7 +14,7 @@ config :event_pulse, EventPulse.Repo,
   pool: Ecto.Adapters.SQL.Sandbox,
   pool_size: System.schedulers_online() * 2
 
-# Also provide individual keys for ecto.create to work
+# Claves sueltas para que `ecto.create` funcione sin `DATABASE_URL`
 if !System.get_env("DATABASE_URL") do
   config :event_pulse, EventPulse.Repo,
     username: "postgres",
@@ -30,21 +29,21 @@ config :event_pulse, EventPulseWeb.Endpoint,
   secret_key_base: "oFWvECaj0n2ZA2nidHYDVlfoYZcWl5qbbf0GLoT9Pox320X2b6VCezpgNpwvmAmG",
   server: false
 
-# In test we don't send emails
+# En tests no se envían correos reales
 config :event_pulse, EventPulse.Mailer, adapter: Swoosh.Adapters.Test
 
-# Disable swoosh api client as it is only required for production adapters
+# Swoosh: sin cliente HTTP en tests
 config :swoosh, :api_client, false
 
-# Print only warnings and errors during test
+# Solo advertencias y errores en consola durante los tests
 config :logger, level: :warning
 
-# Sync persistence in tests to work with SQL sandbox
+# Persistencia síncrona de votos en tests (compatible con SQL Sandbox)
 config :event_pulse, sync_persist: true
 
-# Initialize plugs at runtime for faster test compilation
+# Plugs inicializados en runtime para compilar tests más rápido
 config :phoenix, :plug_init_mode, :runtime
 
-# Sort query params output of verified routes for robust url comparisons
+# Orden estable de query params en rutas verificadas (asserts de URL)
 config :phoenix,
   sort_verified_routes_query_params: true

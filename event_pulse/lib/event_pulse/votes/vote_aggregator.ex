@@ -9,11 +9,13 @@ defmodule EventPulse.Votes.VoteAggregator do
   ## Clúster (Docker / libcluster)
 
   Se registra con `{:global, __MODULE__}`: existe **un solo** agregador en todo el
-  clúster. Cada réplica arranca el mismo hijo en el `Application`; en los nodos que
-  no ganan el registro global, `start_link/1` devuelve `{:ok, pid}` del proceso que
-  ya vive en otro nodo, de modo que el supervisor enlaza al líder remoto en lugar
-  de duplicar estado. `cast_vote/3` y `get_results/1` siguen usando el nombre global,
-  así que cualquier nodo enruta al mismo GenServer.
+  clúster. El `Application` solo añade este hijo si `START_VOTE_AGGREGATOR` no es
+  `"false"` (en la demo Docker, `web2`/`web3` lo omiten para menos contienda al
+  arranque). Cuando varias réplicas sí arrancan el hijo, `start_link/1` devuelve
+  `{:ok, pid}` del proceso que ya vive en otro nodo si no ganan el registro global,
+  y el supervisor enlaza al líder remoto. `cast_vote/3`, `cast_vote_for_poll/3` y
+  `get_results/1` usan el nombre global en cualquier caso, así que cualquier nodo
+  enruta al mismo GenServer.
 
   En tests (`sync_persist: true`), cada `cast_vote` fuerza un flush inmediato.
   """

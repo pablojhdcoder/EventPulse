@@ -1,6 +1,6 @@
 defmodule EventPulseWeb do
   @moduledoc """
-  The entrypoint for defining the web interface.
+  Punto de entrada para definir la interfaz web (controladores, LiveView, HTML).
   """
 
   def static_paths, do: ~w(assets fonts images favicon.ico robots.txt)
@@ -88,7 +88,7 @@ defmodule EventPulseWeb do
   end
 
   @doc """
-  When used, dispatch to the appropriate controller/live_view/etc.
+  Macro `use EventPulseWeb, :…` que delega en el bloque adecuado (router, `live_view`, etc.).
   """
   defmacro __using__(which) when is_atom(which) do
     apply(__MODULE__, which, [])

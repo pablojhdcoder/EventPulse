@@ -1,25 +1,24 @@
 defmodule EventPulseWeb.Gettext do
   @moduledoc """
-  A module providing Internationalization with a gettext-based API.
+  Internacionalización (i18n) con Gettext.
 
-  By using [Gettext](https://hexdocs.pm/gettext), your module compiles translations
-  that you can use in your application. To use this Gettext backend module,
-  call `use Gettext` and pass it as an option:
+  Al usar [Gettext](https://hexdocs.pm/gettext), este módulo compila las cadenas
+  traducibles. Para usar este backend:
 
       use Gettext, backend: EventPulseWeb.Gettext
 
-      # Simple translation
-      gettext("Here is the string to translate")
+      # Traducción simple
+      gettext("Texto a traducir")
 
-      # Plural translation
-      ngettext("Here is the string to translate",
-               "Here are the strings to translate",
+      # Plural
+      ngettext("Un elemento",
+               "Varios elementos",
                3)
 
-      # Domain-based translation
-      dgettext("errors", "Here is the error message to translate")
+      # Por dominio
+      dgettext("errors", "Mensaje de error")
 
-  See the [Gettext Docs](https://hexdocs.pm/gettext) for detailed usage.
+  Más detalle en la [documentación de Gettext](https://hexdocs.pm/gettext).
   """
   use Gettext.Backend, otp_app: :event_pulse
 end

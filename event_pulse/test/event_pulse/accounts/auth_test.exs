@@ -29,7 +29,7 @@ defmodule EventPulse.Accounts.AuthTest do
 
   # Registro de usuario
 
-  describe "register/1" do
+  describe "Alta de usuario (register/1)" do
     test "registra un usuario con datos válidos" do
       assert {:ok, user} = Auth.register(valid_attrs())
       assert user.username == "testuser"
@@ -75,13 +75,13 @@ defmodule EventPulse.Accounts.AuthTest do
   end
 
   # Login de usuario
-  describe "login/2" do
+  describe "Inicio de sesión (login/2)" do
     setup do
       {:ok, user} = Auth.register(valid_attrs())
       %{user: user}
     end
 
-    test "login correcto con credenciales válidas", %{user: user} do
+    test "inicio de sesión correcto con credenciales válidas", %{user: user} do
       assert {:ok, logged_user} = Auth.login(user.email, "Password1!")
       assert logged_user.id == user.id
     end
@@ -96,7 +96,7 @@ defmodule EventPulse.Accounts.AuthTest do
   end
 
   # Buscar usuario
-  describe "get_user/1" do
+  describe "Consulta de usuario por id (get_user/1)" do
     test "devuelve el usuario si existe" do
       {:ok, user} = Auth.register(valid_attrs())
       assert found = Auth.get_user(user.id)
@@ -108,7 +108,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
-  describe "get_user_by_email/1" do
+  describe "Consulta de usuario por email (get_user_by_email/1)" do
     test "devuelve el usuario si existe" do
       {:ok, user} = Auth.register(valid_attrs())
       assert found = Auth.get_user_by_email(user.email)
@@ -120,7 +120,7 @@ defmodule EventPulse.Accounts.AuthTest do
     end
   end
 
-  describe "role helpers" do
+  describe "Roles y permisos" do
     test "admin?/1 devuelve true solo para admin" do
       {:ok, user} = Auth.register(valid_attrs())
       assert not Auth.admin?(user)
@@ -145,7 +145,7 @@ defmodule EventPulse.Accounts.AuthTest do
   end
 
   # Actualizar datos de usuario
-  describe "update_user/2" do
+  describe "Actualización de perfil (update_user/2)" do
     setup do
       {:ok, user} = Auth.register(valid_attrs())
       %{user: user}
@@ -185,7 +185,7 @@ defmodule EventPulse.Accounts.AuthTest do
   # Cambiar contraseña
   # ---------------------------------------------------------------------------
 
-  describe "update_password/2" do
+  describe "Cambio de contraseña (update_password/2)" do
     setup do
       {:ok, user} = Auth.register(valid_attrs())
       %{user: user}
@@ -203,7 +203,7 @@ defmodule EventPulse.Accounts.AuthTest do
   end
 
   # Borrar usuario
-  describe "delete_user/1" do
+  describe "Baja de usuario (delete_user/1)" do
     test "borra el usuario correctamente" do
       {:ok, user} = Auth.register(valid_attrs())
       assert {:ok, _} = Auth.delete_user(user)

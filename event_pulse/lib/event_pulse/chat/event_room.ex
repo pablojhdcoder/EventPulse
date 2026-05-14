@@ -47,8 +47,6 @@ defmodule EventPulse.Chat.EventRoom do
     end
   end
 
-  def send_message_via(server, event_id, message), do: send_message(event_id, message, server)
-
   @doc "Devuelve los últimos N mensajes del evento desde Redis (orden cronológico)."
   def recent_messages(event_id, server \\ __MODULE__) when is_binary(event_id) do
     GenServer.call(server, {:recent_messages, event_id})

@@ -2,9 +2,10 @@ defmodule EventPulseWeb.AuthController do
   use EventPulseWeb, :controller
 
   @moduledoc """
-  Controlador encargado de manejar la autenticación de usuarios (login, registro, logout).
-  Se encarga de recibir las peticiones del navegador, hablar ocn la lógia
-  de negocio (AUth.ex) y decidir que respuesta enviarle al usuario (redireccionar, mostrar mensaje, etc)
+  Controlador de autenticación (login, registro y cierre de sesión).
+
+  Recibe las peticiones del navegador, delega en `EventPulse.Accounts.Auth` y responde
+  con redirecciones o mensajes flash según el resultado.
   """
 
   alias EventPulse.Accounts.Auth

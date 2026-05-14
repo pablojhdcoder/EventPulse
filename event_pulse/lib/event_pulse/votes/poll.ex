@@ -1,4 +1,8 @@
 defmodule EventPulse.Votes.Poll do
+  @moduledoc """
+  Encuesta asociada a un evento: pregunta, lista de opciones (2–4) y estado (`open` / `closed`).
+  """
+
   use Ecto.Schema
   import Ecto.Changeset
 
