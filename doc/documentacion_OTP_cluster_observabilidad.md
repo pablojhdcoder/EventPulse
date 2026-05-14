@@ -1,141 +1,95 @@
-﻿Este documento explica cómo funciona la infraestructura de `EventPulse` en términos simples. Vamos a ver cómo se forman los nodos, qué hace OTP en la aplicación y qué podemos monitorear para saber si todo está bien.
+﻿Este documento describe la infraestructura de `EventPulse` alineada con el **código actual**: OTP, formación de clúster en la demo Docker, agregación global de votos, chat con Redis y qué observamos en explotación.
 
 ## 1. ¿Qué es OTP y por qué importa?
 
-OTP es la base del sistema. En `EventPulse`, usamos OTP para manejar procesos con supervisores y para hacer que la aplicación sea estable.
+OTP es la base del sistema. En `EventPulse` los procesos críticos arrancan bajo un **supervisor** raíz (`EventPulse.Supervisor`, estrategia `:one_for_one`).
 
-- Cada parte importante corre dentro de un supervisor.
-- Si un proceso falla, el supervisor lo reinicia.
-- Esto nos da una aplicación más confiable sin tener que escribir manejo de errores complicado.
+- Si un hijo supervisionable falla, el supervisor puede reiniciarlo según su `:restart`.
+- Esto favorece la tolerancia a fallos sin dispersar `try/rescue` por todo el dominio.
 
-En `EventPulse` hay supervisores para:
+### Árbol de arranque relevante (resumen)
 
-- la web y los endpoints de Phoenix
-- los chats en tiempo real
-- el manejo de votos
-- las tareas asíncronas que guardan datos en la base
+En `EventPulse.Application` conviven, entre otros:
+
+- **Telemetry** y **Task.Supervisor** (tareas auxiliares).
+- **Repositorio Ecto** (`EventPulse.Repo`).
+- **Registry** (`EventPulse.EventRegistry`) y **DynamicSupervisor** (`EventPulse.EventSupervisor`) reservados para procesos OTP por evento; en el código vigente no se arrancan hijos bajo ese supervisor desde los contextos de dominio (el árbol OTP ya incluye el coordinador de chat global, abajo).
+- **DNSCluster** (`DNSCluster`) con consulta configurable (`:dns_cluster_query` / `DNS_CLUSTER_QUERY`) para descubrimiento vía DNS cuando aplica.
+- **libcluster** (`Cluster.Supervisor`) cuando está definido `CLUSTER_PEER_HOSTS`: estrategia **EPMD** entre los hostnames listados (demo Docker: `web1.local`, `web2.local`, `web3.local`).
+- **VoteAggregator** (opcional por réplica): si `START_VOTE_AGGREGATOR` es distinto de `"false"`, el supervisor arranca el hijo `VoteAggregator`; `start_link/1` usa **`{:global, EventPulse.Votes.VoteAggregator}`**, de modo que solo existe **un** proceso con estado en el clúster. Si varias réplicas intentan arrancar el hijo a la vez, las que no ganan el registro global enlazan al PID del líder remoto. En `docker-compose.yml`, `web2` y `web3` llevan `START_VOTE_AGGREGATOR="false"`: **no** se añade el hijo al supervisor local (menos contienda al arranque); `cast_vote/3`, `cast_vote_for_poll/3` y `get_results/1` siguen resolviendo el nombre `:global` contra el proceso que vive en el nodo que sí arrancó el agregador (`web1` en la demo).
+- **Redix** (cliente Redis) para el buffer de chat.
+- **Phoenix.PubSub** (adaptador PG2) para difusión en tiempo real entre nodos del clúster.
+- **`EventPulse.Chat.EventRoom`**: un **GenServer** nombrado que serializa envío de mensajes y lectura del histórico reciente (no mantiene estado de negocio en memoria; delega en Redis + PubSub).
+- **Endpoint** Phoenix / Bandit.
+
+No hay en la versión actual un `SocialFeeling.Worker` ni tabla `social_feeling_results`; el cierre de evento vive en el contexto `EventPulse.Events` (transacción BD + efectos Redis best-effort).
 
 ## 2. Clúster: cómo se comunican varios nodos
 
-El clúster se arma con `dns_cluster`, que es el componente encargado de encontrar otros nodos dentro de la misma red.
+Hay **dos mecanismos complementarios** según despliegue:
 
-- Cuando está configurado, el nodo busca otros nodos usando DNS.
-- Si no se configura, el nodo arranca solo.
-- Para que funcione, todos los nodos deben compartir el mismo `ERL_COOKIE`.
+1. **`libcluster` (EPMD)**  
+   - Variable **`CLUSTER_PEER_HOSTS`**: lista separada por comas de hostnames de réplicas (p. ej. `web1.local,web2.local,web3.local`).
+   - Todos los nodos deben compartir la misma **cookie Erlang** (`RELEASE_COOKIE` en la demo Docker).
 
-### ¿Qué pasa dentro del clúster?
+2. **`DNSCluster`**  
+   - Opcional: `DNS_CLUSTER_QUERY` en `runtime.exs`; útil cuando Phoenix resuelve vecinos por DNS en otros entornos.
 
-- Todos los nodos pueden enviar mensajes entre sí.
-- El servicio usa `Phoenix.PubSub` para transmitir eventos y mensajes.
-- El proceso `EventPulse.Votes.VoteAggregator` se registra como un solo proceso global usando `:global`.
+Dentro del clúster:
 
-Esto significa que, aunque haya varios nodos, el contador de votos funciona como si fuera uno solo.
+- **PubSub** replica los broadcasts entre nodos para tópicos como `event:<id>` o `poll:<id>`.
+- **`VoteAggregator`** con registro **`:global`** garantiza **un solo** proceso de agregación en todo el clúster; las réplicas que no ganan enlazan al líder remoto en lugar de duplicar estado (véase `VoteAggregator.start_link/1`).
+
+### Demo Docker (réplicas + Director)
+
+**Cómo levantar o parar el stack**, URLs y seed en release: únicamente en [`event_pulse/README.md`](../event_pulse/README.md) (sección *Demo distribuida*).
+
+En cuanto a esta documentación OTP/clúster: la demo incluye **PostgreSQL**, **Redis**, tareas **migrate** y **seed**, réplicas **`web1`–`web3`** y **Director** (nginx). En `docker-compose.yml`, **`START_VOTE_AGGREGATOR`** está en `"true"` solo en **web1**; en web2 y web3 es `"false"` para evitar contiendas innecesarias al registrar el proceso global.
 
 ## 3. Qué observamos y por qué
 
-Observabilidad es ver qué está pasando. En `EventPulse` observamos principalmente tres cosas:
+Observabilidad: **métricas Telemetry**, **logs** y, en desarrollo, **LiveDashboard**.
 
-- métricas
-- logs
-- estado de los procesos
+### Métricas
 
-### Métricas principales
-
-Recogemos información útil sobre:
-
-- cuántas peticiones entran a Phoenix
-- cuánto tarda cada endpoint
-- cuánto tarda la base de datos
-- cuánta memoria usa la aplicación
-- cuántos votos se generan y se guardan
-- cuántos mensajes llegan a los chats
-
-Estas métricas nos ayudan a detectar problemas antes de que afecten a los usuarios.
+`EventPulseWeb.Telemetry` define medidas estándar de Phoenix/Ecto (duración de endpoints, consultas BD, etc.) y eventos propios (p. ej. `[:event_pulse, :vote, :cast]` al emitir un voto hacia el agregador).
 
 ### Logs
 
-Los logs están pensados para ser legibles y útiles:
+Útiles para trazar errores de Redis al cerrar eventos (`Events.run_close_side_effects/1`), fallos de persistencia en el agregador de votos (cola `pending`), y tráfico HTTP/WebSocket en producción.
 
-- incluyen fecha y hora
-- muestran el nivel de gravedad (`info`, `error`, etc.)
-- traen datos de contexto como `request_id`, módulo y función
+### LiveDashboard (solo desarrollo)
 
-Cuando usamos logs estructurados, se vuelve más fácil buscar errores y ver qué pasó.
+- Ruta típica: `/dev/dashboard` cuando `dev_routes` está activo.
+- Muestra métricas y supervisores en tiempo real mientras se desarrolla.
 
-### Diagnóstico en desarrollo
+## 4. Votos
 
-En desarrollo, podemos ver un panel con datos de la aplicación en vivo usando LiveDashboard.
+Flujo actual:
 
-- Disponible en `/dev/dashboard`
-- Muestra estadísticas básicas de la app
-- Nos ayuda a entender cómo se comporta el sistema mientras probamos
+1. El LiveView (u otro cliente) invoca el contexto de votos; los votos en vivo pasan por **`VoteAggregator`** (memoria + micro-lotes hacia BD).
+2. El registro **global** asegura recuentos coherentes entre nodos.
+3. Si falla un `Repo.insert`, los votos afectados quedan en **`pending`** y se reintentan en el siguiente ciclo del GenServer.
 
-## 4. Cómo desplegar con Docker
+## 5. Chat
 
-La aplicación está lista para correr en Docker. La idea es sencilla:
+- **Histórico reciente**: `EventPulse.ChatBuffer` sobre **Redis** (streams / lectura de últimos N mensajes).
+- **Tiempo real**: `Phoenix.PubSub.broadcast/3` al tópico `event:<event_id>`.
+- **Coordinación**: `EventPulse.Chat.EventRoom` (GenServer) valida y ordena las operaciones de envío y consulta de mensajes recientes.
 
-1. construir la imagen
-2. arrancar el servicio
-3. usar DNS para que los nodos se descubran entre sí
+Al **finalizar** el evento, se llama a `ChatBuffer.delete_buffer/1` para esa sala de forma **best-effort**; un fallo de Redis no revierte el cierre en PostgreSQL.
 
-### Pasos básicos
+## 6. Operación y diagnóstico
 
-```bash
-cd event_pulse
-docker build -t event_pulse_app .
-```
+Comprobar de forma habitual:
 
-Luego, para usar dos nodos en paralelo:
+- PostgreSQL y Redis accesibles desde las réplicas.
+- En multi-nodo: que `CLUSTER_PEER_HOSTS` y `RELEASE_COOKIE` coincidan y que los tres servicios web estén sanos antes de exponer el Director.
+- Si los votos parecen inconsistentes entre nodos: comprobar conectividad del clúster (`CLUSTER_PEER_HOSTS`, `RELEASE_COOKIE`) y que el registro **`:global`** resuelva (en la demo Docker solo `web1` arranca el hijo del agregador para evitar contiendas al arranque; si **todas** las réplicas arrancan el hijo, OTP sigue eligiendo un único líder, pero puede haber más ruido en logs al competir por el nombre global).
 
-```bash
-docker compose up --build --scale app=2
-```
+## 7. Por qué esta base encaja con la asignatura
 
-### Variables importantes
-
-- `PHX_SERVER=true` para que Phoenix arranque el servidor web
-- `DATABASE_URL` para conectar a PostgreSQL
-- `SECRET_KEY_BASE` en producción debe ser seguro
-- `DNS_CLUSTER_QUERY=app` para activar el descubrimiento de nodos
-- `ERL_COOKIE=event_pulse_cookie` para que los nodos se puedan ver entre sí
-
-## 5. Cómo funciona el flujo de votos y chat
-
-### Votos
-
-Cuando llega un voto:
-
-- se procesa en memoria
-- se cuenta en un único agregador global
-- luego se guarda en la base de datos de forma asíncrona
-
-Este enfoque ayuda a que la aplicación responda rápido y mantenga una vista consistente del total de votos.
-
-### Chat
-
-Las salas de chat funcionan como procesos supervisados.
-
-- cada sala está registrada y protegida por supervisores
-- si una sala falla, se reinicia sola
-- el sistema mantiene mensajes recientes en memoria para eficiencia
-
-## 6. Operación diaria simple
-
-Para cuidar la infraestructura, hay que verificar algunos puntos:
-
-- que PostgreSQL esté funcionando
-- que los nodos formen clúster correctamente
-- que no haya errores graves en los logs
-- que las métricas no muestren consumos inusuales
-
-Si ves que los nodos no se descubren entre sí, revisa `DNS_CLUSTER_QUERY` y `ERL_COOKIE`.
-
-## 7. Por qué esta infraestructura es una buena base
-
-Esta configuración es sencilla pero potente:
-
-- OTP da estabilidad gracias a los supervisores
-- el clúster permite escalar con más nodos
-- la observabilidad nos ayuda a detectar problemas temprano
-
-Además, la arquitectura está preparada para crecer. Si en el futuro se quiere distribuir más trabajo o sincronizar procesos de forma más sólida, podemos agregar herramientas como `Horde` o `libcluster` sin rehacer todo.
+- **OTP** centraliza tolerancia a fallos y supervisión.
+- **Clúster + `:global`** muestran distribución real de procesos, no solo balanceo HTTP.
+- **Redis + PubSub** separan estado efímero del chat del modelo relacional de votos y eventos.
+- La observabilidad (**Telemetry**, logs, dashboard en dev) apoya la defensa de tácticas de monitorización y depuración.

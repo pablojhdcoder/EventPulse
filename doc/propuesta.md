@@ -4,7 +4,7 @@
 
 EventPulse es una plataforma de comunicación en tiempo real que permite a usuarios registrados participar en eventos de la vida real mediante chat en vivo y votaciones mientras el evento está en directo.
 
-Al finalizar el evento, el sistema cierra votaciones y mensajes, agrega los votos y calcula el Social Feeling, un indicador cuantitativo y cualitativo que resume la percepción colectiva. Ese resultado y las votaciones quedan persistidos y consultables en el detalle del evento.
+Al finalizar el evento, el sistema cierra encuestas y deja de aceptar votos y mensajes de chat acordes al estado; los votos quedan persistidos en base de datos. En el detalle del evento finalizado la interfaz muestra un **recap** (recuentos por encuesta). **No** se persiste un indicador agregado tipo «Social Feeling» ni se expone una API REST pública de catálogo de eventos en la versión actual (véase `event_pulse/README.md` y `doc/arquitectura-distribuida-eventpulse.md`).
 
 El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supervisión y modelo adecuado para mensajería concurrente y distribuida bajo carga.
 
@@ -30,7 +30,7 @@ El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supe
 |----|-----------|
 | RF-03 | El sistema deberá permitir a los administradores crear eventos con al menos: nombre, descripción, categoría, fecha/hora de inicio y fecha/hora estimada de fin; asimismo deberá permitir consultar, actualizar y eliminar eventos. |
 | RF-04 | Cada evento deberá encontrarse en uno de los estados: programado, en directo o finalizado. |
-| RF-05 | El sistema deberá listar eventos en directo y permitir filtrado o búsqueda por categoría según el modelo de datos acordado. |
+| RF-05 | El sistema deberá listar el catálogo de eventos y permitir filtrado por categoría según el modelo de datos acordado (en la implementación actual, vía LiveView). |
 
 ### 3.3 Chat en tiempo real
 
@@ -48,13 +48,13 @@ El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supe
 | RF-10 | Un usuario deberá poder emitir o modificar su voto mientras la votación o el evento no hayan terminado. |
 | RF-11 | Los resultados parciales deberán actualizarse y difundirse a los participantes en tiempo razonablemente cercano al real. |
 
-### 3.5 Cierre, Social Feeling e historial
+### 3.5 Cierre e historial de votaciones
 
 | ID | Requisito |
 |----|-----------|
-| RF-12 | Al finalizar el evento, las votaciones deberán cerrarse y el sistema deberá calcular el Social Feeling (sin aceptar votos posteriores al cierre). |
-| RF-13 | El sistema deberá computar el Social Feeling como agregación ponderada de todas las votaciones recibidas (o fórmula equivalente fijada y documentada). |
-| RF-14 | El Social Feeling y el historial completo de votaciones deberán persistirse de forma permanente y ser accesibles en el detalle del evento vía API (y/o contrato documentado). |
+| RF-12 | Al finalizar el evento, las encuestas asociadas deberán cerrarse en base de datos y no se aceptarán votos posteriores al cierre. |
+| RF-13 | Los recuentos por encuesta del evento finalizado deberán ser consultables en el detalle del evento (presentación en interfaz); los votos permanecen en el modelo relacional. |
+| RF-14 | El acceso al catálogo y al detalle de eventos en la implementación vigente es principalmente vía **LiveView** (interfaz web); no hay API REST pública de eventos documentada en esta versión. |
 
 ## 4. Requisitos no funcionales
 
@@ -89,7 +89,7 @@ C4Context
   Person(participant, "Participante", "Usuario registrado: participa en eventos en directo, chat y votaciones")
   Person(admin, "Administrador", "Gestiona el catálogo de eventos y su ciclo de vida")
 
-  System(ep, "EventPulse", "Sistema software que da soporte a eventos en vivo, comunicación en tiempo real, votaciones y resultado con las votaciones y el Social Feeling tras el cierre.")
+  System(ep, "EventPulse", "Sistema software que da soporte a eventos en vivo, comunicación en tiempo real, votaciones y resumen de recuentos tras el cierre (sin indicador SF persistido en BD).")
 
   Rel(participant, ep, "Usa el sistema", "Consultas, participación en salas y votos")
   Rel(admin, ep, "Usa el sistema", "Alta, modificación y control de eventos")
@@ -130,7 +130,7 @@ C4Container
     }
 
     Container_Boundary(contenedor_bd, "Almacén compartido") {
-      ContainerDb(db, "Base de datos", "Persistencia compartida", "Usuarios y datos de cuenta; eventos y estados; votos; Social Feeling e historial por evento; lecturas para catálogo y detalle.")
+      ContainerDb(db, "Base de datos", "Persistencia compartida", "Usuarios y datos de cuenta; eventos y estados; encuestas y votos; lecturas para catálogo y detalle. Estado efímero del chat reciente en Redis (véase arquitectura distribuida).")
     }
   }
 
@@ -183,4 +183,3 @@ C4Container
   Rel(n2_svc_cierre, n2_svc_salas, "Orden", "")
   Rel(n2_svc_cierre, db, "Lee / escribe", "")
 ```
-
