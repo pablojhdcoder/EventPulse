@@ -43,12 +43,6 @@ docker compose up -d --build
 
 Queda levantado PostgreSQL, Redis, tareas one-shot `migrate` y `seed`, tres réplicas de la app (`web1`–`web3`) y el **Director** (NGINX) como entrada única. La demo publica la aplicación en **`http://localhost:8080`** (HTTP y WebSocket balanceados entre réplicas).
 
-Seed adicional en imagen release (opcional):
-
-```bash
-docker compose exec web1 bin/event_pulse rpc "EventPulse.Release.seed"
-```
-
 ### 3. Tests
 
 **Directorio de trabajo:** `event_pulse/`.
