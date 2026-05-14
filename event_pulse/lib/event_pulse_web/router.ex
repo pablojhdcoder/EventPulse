@@ -1,25 +1,48 @@
 defmodule EventPulseWeb.Router do
   use EventPulseWeb, :router
 
-  pipeline :api do
-    plug :accepts, ["json"]
+  pipeline :browser do
+    plug :accepts, ["html"]
+    plug :fetch_session
+    plug EventPulseWeb.Plugs.EnsureDemoUserId
+    plug :fetch_live_flash
+    plug :put_root_layout, html: {EventPulseWeb.Layouts, :root}
+    plug :protect_from_forgery
+    plug :put_secure_browser_headers
   end
 
-  scope "/api", EventPulseWeb do
-    pipe_through :api
+  pipeline :browser_auth do
+    plug EventPulseWeb.Plugs.RequireAuth
   end
 
-  # Enable LiveDashboard and Swoosh mailbox preview in development
+  scope "/", EventPulseWeb do
+    pipe_through :browser
+
+    live "/login", AuthLive.Login, :index
+    post "/login", AuthController, :login
+    live "/register", AuthLive.Register, :index
+    post "/register", AuthController, :register
+    delete "/logout", AuthController, :logout
+  end
+
+  scope "/", EventPulseWeb do
+    pipe_through [:browser, :browser_auth]
+
+    live_session :authenticated,
+      on_mount: [{EventPulseWeb.LiveUserAuth, :ensure_authenticated}] do
+      live "/", EventLive.Index, :index
+      live "/events", EventLive.Index, :index
+      live "/events/new", EventLive.Form, :new
+      live "/events/:id/edit", EventLive.Form, :edit
+      live "/events/:id", EventLive.Show, :show
+    end
+  end
+
   if Application.compile_env(:event_pulse, :dev_routes) do
-    # If you want to use the LiveDashboard in production, you should put
-    # it behind authentication and allow only admins to access it.
-    # If your application does not have an admins-only section yet,
-    # you can use Plug.BasicAuth to set up some basic authentication
-    # as long as you are also using SSL (which you should anyway).
     import Phoenix.LiveDashboard.Router
 
     scope "/dev" do
-      pipe_through [:fetch_session, :protect_from_forgery]
+      pipe_through :browser
 
       live_dashboard "/dashboard", metrics: EventPulseWeb.Telemetry
       forward "/mailbox", Plug.Swoosh.MailboxPreview

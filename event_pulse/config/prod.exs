@@ -1,25 +1,14 @@
 import Config
 
-# Force using SSL in production. This also sets the "strict-security-transport" header,
-# known as HSTS. If you have a health check endpoint, you may want to exclude it below.
-# Note `:force_ssl` is required to be set at compile-time.
-config :event_pulse, EventPulseWeb.Endpoint,
-  force_ssl: [
-    rewrite_on: [:x_forwarded_proto],
-    exclude: [
-      # paths: ["/health"],
-      hosts: ["localhost", "127.0.0.1"]
-    ]
-  ]
+config :event_pulse, EventPulseWeb.Endpoint, force_ssl: false
 
-# Configure Swoosh API Client
+# Cliente HTTP de Swoosh
 config :swoosh, api_client: Swoosh.ApiClient.Req
 
-# Disable Swoosh Local Memory Storage
+# Sin almacenamiento local de Swoosh en memoria
 config :swoosh, local: false
 
-# Do not print debug messages in production
+# Nivel de log en producción
 config :logger, level: :info
 
-# Runtime production configuration, including reading
-# of environment variables, is done on config/runtime.exs.
+# La configuración en runtime (variables de entorno, secretos) está en `config/runtime.exs`.
