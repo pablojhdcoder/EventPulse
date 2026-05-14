@@ -57,7 +57,7 @@ Efímero (no persistencia histórica en PostgreSQL):
 ## PubSub y tiempo real
 
 - Los eventos de negocio se publican por tópicos de evento (`event:<id>`, `events:<id>`, `events:updates`, `poll:<id>`, etc.).
-- Las actualizaciones de chat, estado y votos se propagan mediante PubSub y los procesos LiveView/Canal suscritos.
+- Las actualizaciones de chat, estado y votos se propagan mediante PubSub y los procesos **LiveView** suscritos (no hay módulos Phoenix **Channel** propios en la capa web: el tiempo real va por LiveView + `Phoenix.LiveView.Socket`).
 
 ## Riesgos y límites actuales
 

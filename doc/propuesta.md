@@ -17,58 +17,82 @@ El proyecto aprovecha Elixir/OTP: procesos ligeros, tolerancia a fallos por supe
 
 ## 3. Requisitos funcionales
 
+Listado alineado con la **implementación vigente** en `event_pulse/`.
+
 ### 3.1 Gestión de usuarios
 
-| ID | Requisito |
-|----|-----------|
-| RF-01 | El sistema deberá permitir el registro de usuarios con nombre de usuario, correo electrónico y contraseña válidos. |
-| RF-02 | El sistema deberá autenticar usuarios mediante credenciales. |
+- **RF-01:** El sistema permite registrar usuarios con **nombre de usuario**, **correo electrónico** y **contraseña** (validadas según el esquema de cuenta).
+- **RF-02:** El sistema permite **iniciar sesión** y **cerrar sesión** (autenticación por credenciales y sesión en navegador).
+- **RF-03:** Las rutas de aplicación principal (listado y detalle de eventos, formularios) exigen usuario autenticado. Las operaciones de **administración** del catálogo (crear/editar/borrar eventos, cambios de estado) están restringidas a usuarios con **rol administrador**.
 
 ### 3.2 Gestión de eventos
 
-| ID | Requisito |
-|----|-----------|
-| RF-03 | El sistema deberá permitir a los administradores crear eventos con al menos: nombre, descripción, categoría, fecha/hora de inicio y fecha/hora estimada de fin; asimismo deberá permitir consultar, actualizar y eliminar eventos. |
-| RF-04 | Cada evento deberá encontrarse en uno de los estados: programado, en directo o finalizado. |
-| RF-05 | El sistema deberá listar el catálogo de eventos y permitir filtrado por categoría según el modelo de datos acordado (en la implementación actual, vía LiveView). |
+- **RF-04:** Los administradores pueden **crear**, **actualizar** y **eliminar** eventos desde LiveView, incluyendo campos acordados al modelo (título, descripción, categoría, fechas de inicio y fin, estado).
+- **RF-05:** El sistema **lista el catálogo de eventos** y permite **filtrar por categoría** en la interfaz LiveView. Los cambios relevantes del catálogo se **difunden en tiempo real** (p. ej. vía PubSub) a las vistas suscritas.
+- **RF-06:** Cada evento se encuentra en uno de los estados **`programado`**, **`en_directo`** o **`finalizado`**, con transiciones controladas (`programado` → `en_directo` → `finalizado`).
+- **RF-07:** Los clientes conectados al **detalle del evento** reciben actualizaciones en tiempo real sobre la sala (p. ej. **estado del evento**, **mensajes de chat**, **votaciones y recuentos**) mediante difusión por **tópico de evento** (`event:<id>`).
 
-### 3.3 Chat en tiempo real
+### 3.3 Votaciones (encuestas)
 
-| ID | Requisito |
-|----|-----------|
-| RF-06 | Un usuario autenticado deberá poder unirse a la sala de chat de un evento en directo (y abandonarla de forma ordenada). |
-| RF-07 | Los mensajes enviados por un usuario deberán difundirse en tiempo real a todos los participantes conectados a la misma sala. |
-| RF-08 | El sistema deberá mantener un buffer de los últimos N mensajes de la sala (orden cronológico) y, al unirse un participante o reconectarse, enviarle esos mensajes para que recupere el contexto reciente de la conversación. |
+- **RF-08:** Un evento puede tener **una o más encuestas** (*polls*). Cada encuesta tiene una pregunta y **entre 2 y 4 opciones** de respuesta (texto).
+- **RF-09:** Se mantiene **como mucho un voto vigente por participante y encuesta** (en la demo, el participante se distingue con un identificador de sesión acoplado al flujo de voto).
+- **RF-10:** Mientras la encuesta y el evento no estén cerrados, el usuario puede **modificar su voto** (sustituye la opción elegida; no acumula votos múltiples).
+- **RF-11:** Los **recuentos parciales** se **actualizan y difunden** en tiempo real a los clientes conectados (coordinación con agregación en vivo donde aplique).
+- **RF-12:** Al **finalizar** el evento, las encuestas asociadas quedan **cerradas en base de datos** y **no se aceptan votos nuevos ni modificaciones**.
 
-### 3.4 Votaciones
+### 3.4 Chat
 
-| ID | Requisito |
-|----|-----------|
-| RF-09 | Cada evento deberá poder tener una o más preguntas de votación asociadas. |
-| RF-10 | Un usuario deberá poder emitir o modificar su voto mientras la votación o el evento no hayan terminado. |
-| RF-11 | Los resultados parciales deberán actualizarse y difundirse a los participantes en tiempo razonablemente cercano al real. |
+- **RF-13:** Un usuario autenticado puede **enviar y recibir mensajes** en una **sala de chat asociada al evento** mientras el evento está en directo (difusión en tiempo real).
+- **RF-14:** Al **unirse** a la sala, el sistema proporciona un **buffer de mensajes recientes** (orden cronológico), respaldado en **Redis** en despliegues que lo usan, para recuperar contexto reciente.
+- **RF-15:** Con el evento en **`finalizado`**, el chat **deja de aceptar** envío de mensajes acorde al estado de la interfaz y al dominio.
 
-### 3.5 Cierre e historial de votaciones
+### 3.5 Cierre e historial en interfaz
 
-| ID | Requisito |
-|----|-----------|
-| RF-12 | Al finalizar el evento, las encuestas asociadas deberán cerrarse en base de datos y no se aceptarán votos posteriores al cierre. |
-| RF-13 | Los recuentos por encuesta del evento finalizado deberán ser consultables en el detalle del evento (presentación en interfaz); los votos permanecen en el modelo relacional. |
-| RF-14 | El acceso al catálogo y al detalle de eventos en la implementación vigente es principalmente vía **LiveView** (interfaz web); no hay API REST pública de eventos documentada en esta versión. |
+- **RF-16:** Tras el cierre, los **votos por encuesta** permanecen persistidos; el **detalle del evento finalizado** muestra un **resumen de recuentos** por pregunta en LiveView. **No** se calcula ni persiste en esta versión un **indicador agregado tipo «Social Feeling»** en base de datos.
+
+### 3.6 Exposición del sistema
+
+- **RF-17:** El acceso al **catálogo y detalle de eventos**, chat y votaciones se realiza principalmente mediante **interfaz web Phoenix LiveView**. **No** hay en la versión actual **API REST pública documentada** para consumo externo del catálogo de eventos.
 
 ## 4. Requisitos no funcionales
 
-| ID | Atributo de calidad | Requisito |
-|----|---------------------|-----------|
-| RNF-01 | Escalabilidad / concurrencia | El diseño deberá permitir crecer en número de conexiones concurrentes de forma razonable. |
-| RNF-02 | Rendimiento (chat) | El chat deberá sentirse fluido: la propagación de mensajes a los participantes de una sala será un objetivo de baja latencia. |
-| RNF-03 | Disponibilidad | El diseño deberá favorecer la continuidad del servicio (réplicas, supervisión OTP, recuperación ante fallos de proceso). |
-| RNF-04 | Tolerancia a fallos | Se buscará que el fallo de una sala o proceso aislable tenga impacto acotado en el resto del sistema y que los supervisores OTP permitan recuperación automática o manual. |
-| RNF-05 | Consistencia de votos | A efectos de cierre del evento, deberá garantizarse un solo voto vigente por usuario y pregunta; los recuentos en vivo en un despliegue multi‑nodo podrán mostrar pequeños desfases breves entre clientes. |
-| RNF-06 | Escalabilidad horizontal | La arquitectura deberá contemplar varios nodos de aplicación y el reparto de carga a alto nivel. |
-| RNF-07 | Seguridad | Las contraseñas no se almacenarán en claro; se usará un hash fuerte de uso habitual en Elixir (p. ej. bcrypt). |
-| RNF-08 | Observabilidad | Se plantea usar Telemetry y logging en los puntos útiles para depurar. |
-| RNF-09 | Mantenibilidad y calidad del desarrollo | El código deberá ser legible y coherente y las pruebas automatizadas cubrirán las partes que el equipo considere prioritarias. |
+Formulación alineada con **lo implementado** en el repositorio (sin prometer SLAs o cargas que el código no mida).
+
+### 4.1 Rendimiento (tiempo real)
+
+- **RNF-01:** La aplicación usa **LiveView** y **PubSub** para difundir chat y recuentos. El diseño persigue **baja latencia percibida**; **no** hay en el proyecto umbrales numéricos obligatorios ni baterías de carga que acoten el rendimiento.
+
+### 4.2 Seguridad
+
+- **RNF-02:** Las rutas principales exigen **usuario autenticado** (sesión y plugs de autorización). Las contraseñas **no** se guardan en claro: en alta/cambio se persiste **`password_hash`** mediante **Pbkdf2** (`hash_pwd_salt`).
+
+### 4.3 Disponibilidad y supervisión OTP
+
+- **RNF-03:** El arranque usa **supervisión OTP** (`one_for_one`) para **reiniciar procesos hijos** ante fallos. Eso **no** equivale a alta disponibilidad total: la caída de **PostgreSQL**, **Redis** o del **nodo BEAM** sigue siendo un fallo de servicio.
+
+### 4.4 Escalabilidad / concurrencia
+
+- **RNF-04:** El stack **Phoenix / OTP** está pensado para crecer en **conexiones concurrentes de forma razonable**. **No** se afirma en el código un techo del tipo «miles de usuarios simultáneos sin degradación» demostrado por pruebas.
+
+### 4.5 Tolerancia a fallos
+
+- **RNF-05:** Un fallo en un **proceso supervisable** puede recuperarse por **reinicio** sin reescribir la aplicación entera; el **alcance** depende de qué proceso falle (p. ej. colapso de `Repo` o del endpoint afecta de forma distinta a un `Task` aislado).
+
+### 4.6 Consistencia de votos
+
+- **RNF-06:** En base de datos se garantiza **como máximo un voto por par** `(user_id, poll_id)` mediante **índice único**. En **varios nodos**, los **recuentos en vivo** difundidos pueden mostrar **desfases breves** entre clientes respecto a la vista persistida.
+
+### 4.7 Mantenibilidad
+
+- **RNF-07:** Código organizado por **contextos** y capa **web**; existen **pruebas automatizadas** bajo `test/` (dominio, votos, LiveView, cuentas, etc.) como apoyo a regresiones, **sin** pretender cobertura exhaustiva.
+
+### 4.8 Observabilidad
+
+- **RNF-08:** Hay **Telemetry** con métricas de Phoenix, Ecto y contadores propios (votos, chat) y **logging** en puntos de dominio (p. ej. errores **best-effort** al vaciar buffer de chat en Redis). En desarrollo puede activarse **LiveDashboard** si `dev_routes` está habilitado.
+
+### 4.9 Escalabilidad horizontal (demo)
+
+- **RNF-09:** El repositorio ofrece **Docker Compose** con **varias réplicas** de la app, **Director (nginx)** para reparto HTTP/WebSocket, **Redis** compartido para el buffer de chat y **libcluster** / `CLUSTER_PEER_HOSTS` para el **clúster Erlang**. El **`VoteAggregator`** está pensado para **una sola réplica** que lo arranque en la demo (`START_VOTE_AGGREGATOR`), coherente con un único agregador global.
 
 ## 5. Arquitectura del software (cliente–servidor distribuido y C4)
 

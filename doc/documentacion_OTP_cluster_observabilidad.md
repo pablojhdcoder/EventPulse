@@ -13,7 +13,6 @@ En `EventPulse.Application` conviven, entre otros:
 
 - **Telemetry** y **Task.Supervisor** (tareas auxiliares).
 - **Repositorio Ecto** (`EventPulse.Repo`).
-- **Registry** (`EventPulse.EventRegistry`) y **DynamicSupervisor** (`EventPulse.EventSupervisor`) reservados para procesos OTP por evento; en el código vigente no se arrancan hijos bajo ese supervisor desde los contextos de dominio (el árbol OTP ya incluye el coordinador de chat global, abajo).
 - **DNSCluster** (`DNSCluster`) con consulta configurable (`:dns_cluster_query` / `DNS_CLUSTER_QUERY`) para descubrimiento vía DNS cuando aplica.
 - **libcluster** (`Cluster.Supervisor`) cuando está definido `CLUSTER_PEER_HOSTS`: estrategia **EPMD** entre los hostnames listados (demo Docker: `web1.local`, `web2.local`, `web3.local`).
 - **VoteAggregator** (opcional por réplica): si `START_VOTE_AGGREGATOR` es distinto de `"false"`, el supervisor arranca el hijo `VoteAggregator`; `start_link/1` usa **`{:global, EventPulse.Votes.VoteAggregator}`**, de modo que solo existe **un** proceso con estado en el clúster. Si varias réplicas intentan arrancar el hijo a la vez, las que no ganan el registro global enlazan al PID del líder remoto. En `docker-compose.yml`, `web2` y `web3` llevan `START_VOTE_AGGREGATOR="false"`: **no** se añade el hijo al supervisor local (menos contienda al arranque); `cast_vote/3`, `cast_vote_for_poll/3` y `get_results/1` siguen resolviendo el nombre `:global` contra el proceso que vive en el nodo que sí arrancó el agregador (`web1` en la demo).
