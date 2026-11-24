@@ -27,9 +27,7 @@ Está construida con **Elixir/OTP** y **Phoenix LiveView**: la interfaz se actua
 ## 🎥 Demo
 
 
-
-https://github.com/user-attachments/assets/796e51a5-6b82-455a-979b-f7901e69ea75
-
+https://github.com/user-attachments/assets/e2e7f34b-1306-43b1-acab-353525355284
 
 
 ## 📸 Capturas
